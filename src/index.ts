@@ -23,11 +23,14 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(morgan(MODE === 'dev' ? 'dev' : 'combined'));
 app.use(cors({ origin: FRONTEND_URL || true, credentials: true }));
-app.use(authMiddleware);
 
-app.use('/api/auth', authRoutes);
-app.use('/api/file-uploads', fileUploadsRoutes);
-app.use('/api/conversions', conversionsRoutes);
-app.use('/api/preparations', preparationsRoutes);
+const apiV1Router = express.Router();
+apiV1Router.use(authMiddleware);
+apiV1Router.use('/auth', authRoutes);
+apiV1Router.use('/file-uploads', fileUploadsRoutes);
+apiV1Router.use('/conversions', conversionsRoutes);
+apiV1Router.use('/preparations', preparationsRoutes);
+
+app.use('/api/v1', apiV1Router);
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
