@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { UserPayload } from './types';
 import jwt from 'jsonwebtoken';
-import { JWT_SECRET } from './consts';
+import { JWT_SECRET } from '.';
 
 declare global {
   namespace Express {
