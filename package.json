@@ -9,7 +9,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "description": "",
   "dependencies": {
     "cookie-parser": "^1.4.7",
@@ -19,7 +19,8 @@
     "express-session": "^1.19.0",
     "google-auth-library": "^10.6.2",
     "jsonwebtoken": "^9.0.3",
-    "morgan": "^1.10.1"
+    "morgan": "^1.10.1",
+    "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.8",
@@ -28,6 +29,7 @@
     "@types/express-session": "^1.19.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
+    "@types/multer": "^1.4.7",
     "@types/node": "^25.6.2",
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.17",

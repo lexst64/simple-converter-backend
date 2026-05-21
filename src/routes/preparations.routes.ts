@@ -7,29 +7,14 @@ function notImplemented(res: Response) {
 }
 
 router.post('/', async (req, res) => {
-  if (!req.isLoggedIn) {
-    res.status(401);
-    return;
-  }
-
   return notImplemented(res);
 });
 
 router.get('/:preparationId', async (req, res) => {
-  if (!req.isLoggedIn) {
-    res.status(401);
-    return;
-  }
-
   return notImplemented(res);
 });
 
 router.get('/:preparationId/file', async (req, res) => {
-  if (!req.isLoggedIn) {
-    res.status(401);
-    return;
-  }
-
   return notImplemented(res);
 });
 

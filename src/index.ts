@@ -5,7 +5,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { authMiddleware } from './middlewares';
 import authRoutes from './routes/auth.routes';
-import fileUploadsRoutes from './routes/fileuploads.routes';
+import filesRoutes from './routes/files.routes';
 import conversionsRoutes from './routes/conversions.routes';
 import preparationsRoutes from './routes/preparations.routes';
 import { requireEnv } from './utils';
@@ -25,9 +25,9 @@ app.use(morgan(MODE === 'dev' ? 'dev' : 'combined'));
 app.use(cors({ origin: FRONTEND_URL || true, credentials: true }));
 
 const apiV1Router = express.Router();
-apiV1Router.use(authMiddleware);
+apiV1Router.use(authMiddleware(['/api/v1/auth', '/api/v1/auth/google']));
 apiV1Router.use('/auth', authRoutes);
-apiV1Router.use('/file-uploads', fileUploadsRoutes);
+apiV1Router.use('/files', filesRoutes);
 apiV1Router.use('/conversions', conversionsRoutes);
 apiV1Router.use('/preparations', preparationsRoutes);
 

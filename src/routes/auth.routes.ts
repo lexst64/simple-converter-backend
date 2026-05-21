@@ -60,11 +60,6 @@ router.post('/google', async (req, res) => {
 });
 
 router.get('/me', async (req, res) => {
-  if (!req.isLoggedIn) {
-    res.status(401);
-    return;
-  }
-
   res.json({
     googleId: req.loggedInUser?.googleId,
     email: req.loggedInUser?.email,
