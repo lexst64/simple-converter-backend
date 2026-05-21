@@ -6,12 +6,12 @@ import { JWT_SECRET } from '.';
 declare global {
   namespace Express {
     interface Request {
-      loggedInUser: UserPayload;
+      loggedInUser?: UserPayload;
     }
   }
 }
 
-export const authMiddleware = (exceptFor?: string[]) => {
+export const jwtAuth = (exceptFor?: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     if (exceptFor && exceptFor.includes(req.originalUrl)) {
       next();
@@ -38,6 +38,24 @@ export const authMiddleware = (exceptFor?: string[]) => {
     } else {
       return res.status(401).json({ message: 'Not authenticated' });
     }
+
+    next();
+  };
+};
+
+export const pagination = (defaultLimit: number, maxLimit: number) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    let { limit, offset } = req.query;
+
+    let parsedLimit = Number(limit) || defaultLimit;
+    let parsedOffset = Number(offset) || 0;
+
+    if (parsedLimit < 1) parsedLimit = defaultLimit;
+    if (parsedLimit > maxLimit) parsedLimit = maxLimit;
+    if (parsedOffset < 0) parsedOffset = 0;
+
+    req.query.limit = parsedLimit.toString();
+    req.query.offset = parsedOffset.toString();
 
     next();
   };

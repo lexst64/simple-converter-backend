@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '..';
@@ -14,13 +14,11 @@ router.post('/google', async (req, res) => {
   }
 
   try {
-    // 1. Verify the ID token with Google's servers
     const ticket = await client.verifyIdToken({
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
 
-    // 2. Extract user profile information from payload
     const payload = ticket.getPayload();
 
     if (!payload) {
@@ -40,14 +38,12 @@ router.post('/google', async (req, res) => {
     // Dummy user object for this example
     const user = { googleId, email, name, picture };
 
-    // 4. Generate your own JWT or session for your application
     const appToken = jwt.sign(
       { googleId: user.googleId, name: user.name, email: user.email, picture: user.picture },
       JWT_SECRET,
       { expiresIn: '1d' },
     );
 
-    // 5. Respond back to the frontend with your custom session token and user info
     return res.status(200).json({
       message: 'Login successful',
       token: appToken,

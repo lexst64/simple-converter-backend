@@ -50,4 +50,8 @@ router.post('/', (req: Request, res: Response) => {
   });
 });
 
+router.get('/:fileId', (req: Request, res: Response) => {
+  return res.json({ id: req.params.fileId });
+});
+
 export default router;

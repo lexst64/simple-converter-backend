@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import morgan from 'morgan';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { authMiddleware } from './middlewares';
+import { jwtAuth, pagination } from './middlewares';
 import authRoutes from './routes/auth.routes';
 import filesRoutes from './routes/files.routes';
 import conversionsRoutes from './routes/conversions.routes';
@@ -25,7 +25,9 @@ app.use(morgan(MODE === 'dev' ? 'dev' : 'combined'));
 app.use(cors({ origin: FRONTEND_URL || true, credentials: true }));
 
 const apiV1Router = express.Router();
-apiV1Router.use(authMiddleware(['/api/v1/auth', '/api/v1/auth/google']));
+
+apiV1Router.use(jwtAuth(['/api/v1/auth', '/api/v1/auth/google']));
+
 apiV1Router.use('/auth', authRoutes);
 apiV1Router.use('/files', filesRoutes);
 apiV1Router.use('/conversions', conversionsRoutes);
