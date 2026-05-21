@@ -12,7 +12,7 @@ export function requireEnv(name: string): string {
 
 export function requireFfmpeg(): void {
   try {
-    execSync('ffmpega -version', { stdio: 'ignore' });
+    execSync('ffmpeg -version', { stdio: 'ignore' });
   } catch (error) {
     console.error('✗ FFmpeg is NOT installed or NOT in your system PATH.');
     exit(1);
