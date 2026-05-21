@@ -9,6 +9,8 @@ import filesRoutes from './routes/files.routes';
 import conversionsRoutes from './routes/conversions.routes';
 import preparationsRoutes from './routes/preparations.routes';
 import { requireEnv } from './utils';
+import { execSync } from 'node:child_process';
+import { exit } from 'node:process';
 
 dotenv.config();
 
@@ -16,6 +18,15 @@ export const PORT = requireEnv('PORT');
 export const FRONTEND_URL = requireEnv('FRONTEND_URL');
 export const JWT_SECRET = requireEnv('JWT_SECRET');
 export const MODE = requireEnv('MODE');
+
+try {
+  const stdout = execSync('ffmpeg -version', { stdio: 'pipe', encoding: 'utf-8' }).toString();
+  const versionLine = stdout.split('\n')[0];
+  console.log(`✓ FFmpeg is installed! (${versionLine})`);
+} catch (error) {
+  console.error('✗ FFmpeg is NOT installed or not in your system PATH.');
+  exit(1);
+}
 
 const app = express();
 
