@@ -29,7 +29,9 @@ app.use(cors({ origin: FRONTEND_URL || true, credentials: true }));
 
 const apiV1Router = express.Router();
 
-apiV1Router.use(jwtAuth(['/api/v1/auth', '/api/v1/auth/google']));
+apiV1Router.use(
+  jwtAuth(['/api/v1/auth', '/api/v1/auth/google', '/api/v1/health', '/api/v1/formats']),
+);
 
 apiV1Router.use('/', systemRoutes);
 apiV1Router.use('/auth', authRoutes);
