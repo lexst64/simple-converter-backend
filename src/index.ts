@@ -3,7 +3,8 @@ import dotenv from 'dotenv';
 import morgan from 'morgan';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { jwtAuth, pagination } from './middlewares';
+import { jwtAuth } from './middlewares';
+import systemRoutes from './routes/system.routes';
 import authRoutes from './routes/auth.routes';
 import filesRoutes from './routes/files.routes';
 import conversionsRoutes from './routes/conversions.routes';
@@ -39,6 +40,7 @@ const apiV1Router = express.Router();
 
 apiV1Router.use(jwtAuth(['/api/v1/auth', '/api/v1/auth/google']));
 
+apiV1Router.use('/', systemRoutes);
 apiV1Router.use('/auth', authRoutes);
 apiV1Router.use('/files', filesRoutes);
 apiV1Router.use('/conversions', conversionsRoutes);
