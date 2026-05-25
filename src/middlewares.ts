@@ -1,13 +1,19 @@
 import { NextFunction, Request, Response } from 'express';
 import { UserPayload } from './types';
 import jwt from 'jsonwebtoken';
-import { JWT_SECRET } from '.';
+import { JWT_SECRET, logger } from '.';
+import { AppError } from './errors';
+import pino from 'pino';
+import { pinoHttp } from 'pino-http';
 
 declare global {
   namespace Express {
     interface Request {
       loggedInUser?: UserPayload;
     }
+  }
+  interface Error {
+    status?: number;
   }
 }
 
@@ -33,10 +39,10 @@ export const jwtAuth = (exceptFor?: string[]) => {
           name: decodedPayload.name,
         };
       } catch (error: any) {
-        return res.status(401).json({ message: 'Incorret authentication token' });
+        throw new AppError(401, 'Incorret authentication token');
       }
     } else {
-      return res.status(401).json({ message: 'Not authenticated' });
+      throw new AppError(401, 'Not authenticated');
     }
 
     next();
@@ -59,4 +65,41 @@ export const pagination = (defaultLimit: number, maxLimit: number) => {
 
     next();
   };
+};
+
+export const errorHandler = () => {
+  return (err: Error, req: Request, res: Response, _next: NextFunction) => {
+    const errorStatus = err.status || 500;
+    const errorMessage = err.message;
+
+    if (errorStatus >= 500) {
+      logger.error({
+        message: errorMessage,
+        status: errorStatus,
+        method: req.method,
+        url: req.originalUrl,
+      });
+    }
+
+    return res.status(errorStatus).json({
+      status: 'error',
+      message: errorStatus >= 500 ? 'Something went wrong' : errorMessage,
+      code: errorStatus,
+    });
+  };
+};
+
+export const httpLogger = (logger: pino.Logger) => {
+  return pinoHttp({
+    logger,
+    serializers: {
+      req: (req) => ({
+        method: req.method,
+        url: req.url,
+      }),
+      res: (res) => ({
+        statusCode: res.statusCode,
+      }),
+    },
+  });
 };

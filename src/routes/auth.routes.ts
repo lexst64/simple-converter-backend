@@ -2,15 +2,16 @@ import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '..';
+import { AppError } from '../errors';
 
 const router = Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 router.post('/google', async (req, res) => {
-  const { token } = req.body;
+  const { token } = req.body || {};
 
   if (!token) {
-    return res.status(400).json({ message: 'Token is required' });
+    throw new AppError(400, 'Token is required');
   }
 
   try {
@@ -22,7 +23,7 @@ router.post('/google', async (req, res) => {
     const payload = ticket.getPayload();
 
     if (!payload) {
-      return res.status(400).json({ message: 'Token is broken' });
+      throw new AppError(400, 'Token is broken');
     }
 
     const { sub: googleId, email, name, picture } = payload;
@@ -50,8 +51,7 @@ router.post('/google', async (req, res) => {
       user: { name: user.name, email: user.email, picture: user.picture },
     });
   } catch (error) {
-    console.error('Google auth verification failed:', error);
-    return res.status(401).json({ message: 'Invalid Google token' });
+    throw new AppError(401, 'Invalid Google token');
   }
 });
 
