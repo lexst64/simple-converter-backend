@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import path from 'node:path';
 import { exit } from 'node:process';
 
 export function requireEnv(name: string): string {
@@ -17,4 +18,8 @@ export function requireFfmpeg(): void {
     console.error('✗ FFmpeg is NOT installed or NOT in your system PATH.');
     exit(1);
   }
+}
+
+export function getFilenameExt(filename: string): string {
+  return path.extname(filename).slice(1);
 }

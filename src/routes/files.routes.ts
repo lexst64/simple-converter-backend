@@ -3,18 +3,16 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
+import { getFilenameExt } from '../utils';
+import { FilesService, UPLOADS_DIR } from '../services/files.service';
+import { ConversionService } from '../services/conversion.service';
 
 const router = Router();
 const MAX_FILE_SIZE = 1073741824;
-const uploadsDir = path.join(process.cwd(), 'uploads');
-
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
 
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, _file, cb) => cb(null, randomUUID()),
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, _file, cb) => cb(null, `${randomUUID()}.${getFilenameExt(_file.originalname)}`),
 });
 
 const upload = multer({ storage, limits: { fileSize: MAX_FILE_SIZE } });
@@ -37,6 +35,17 @@ router.post('/', (req: Request, res: Response) => {
 
     if (!file) {
       return res.status(400).json({ message: 'File is required' });
+    }
+
+    const filenameExt = getFilenameExt(file.originalname);
+
+    if (filenameExt === '') {
+      FilesService.removeUpload(file.filename); 
+      return res.status(400).json({ message: 'File should have an extension' })
+    }
+    if (!ConversionService.isFormatSupported(filenameExt)) {
+      FilesService.removeUpload(file.filename); 
+      return res.status(400).json({ message: 'File format is not supported' })
     }
 
     // TODO: save file's meta to the database and link it to the user
