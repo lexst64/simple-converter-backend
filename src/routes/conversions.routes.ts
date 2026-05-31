@@ -1,11 +1,15 @@
 import { Router, Response, Request } from 'express';
 import { pagination } from '../middlewares';
 import { ConversionJobRequest } from '../types';
-import { ConversionService, SUPPORTED_FORMATS } from '../services/conversion.service';
+import { ConversionService } from '../services/conversion.service';
 import { AppError } from '../errors';
 import { logger } from '../index';
 
 const router = Router();
+
+function notImplemented(res: Response) {
+  return res.status(501).json({ message: 'Not implemented' });
+}
 
 /**
  * POST /api/v1/conversions/job
@@ -33,7 +37,7 @@ router.post('/job', async (req: Request, res: Response, next) => {
     if (!ConversionService.isFormatSupported(outputFormat)) {
       throw new AppError(
         400,
-        `Output format '${outputFormat}' is not supported. Supported formats: ${SUPPORTED_FORMATS}`,
+        `Output format '${outputFormat}' is not supported. Supported formats: mp4, mkv, webm, avi, mov, flv, wmv, mp3, aac, wav, flac, ogg`,
       );
     }
 
@@ -71,8 +75,8 @@ router.get('/job', pagination(1, 50), async (req: Request, res: Response, next) 
     }
 
     const { limit, offset } = req.query;
-    const parsedLimit = Number(limit);
-    const parsedOffset = Number(offset);
+    const parsedLimit = Number(limit) || 1;
+    const parsedOffset = Number(offset) || 0;
 
     const jobs = ConversionService.getUserJobs(userId, parsedLimit, parsedOffset);
 
@@ -107,7 +111,7 @@ router.get('/job/:id', async (req: Request, res: Response, next) => {
 
     // Verify that the job belongs to the authenticated user
     if (job.userId !== userId) {
-      throw new AppError(403, 'This job does not belong to you');
+      throw new AppError(403, 'Forbidden: This job does not belong to you');
     }
 
     return res.json(job);

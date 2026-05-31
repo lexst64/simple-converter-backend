@@ -1,11 +1,10 @@
 import { Router, Response, Request } from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { getFilenameExt } from '../utils';
 import { FilesService, UPLOADS_DIR } from '../services/files.service';
 import { ConversionService } from '../services/conversion.service';
+import { FileResponse, FileUploadResponse } from '../types';
 
 const router = Router();
 const MAX_FILE_SIZE = 1073741824;
@@ -50,17 +49,21 @@ router.post('/', (req: Request, res: Response) => {
 
     // TODO: save file's meta to the database and link it to the user
 
-    return res.status(201).json({
+    const response: FileUploadResponse = {
       id: file.filename,
       originalName: file.originalname,
       mimeType: file.mimetype,
       size: file.size,
-    });
+    };
+
+    return res.status(201).json(response);
   });
 });
 
 router.get('/:fileId', (req: Request, res: Response) => {
-  return res.json({ id: req.params.fileId });
+  const fileId = typeof req.params.fileId === 'string' ? req.params.fileId : req.params.fileId[0];
+  const response: FileResponse = { id: fileId };
+  return res.json(response);
 });
 
 export default router;

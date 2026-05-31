@@ -25,11 +25,14 @@ export const jwtAuth = (exceptFor?: string[]) => {
     }
 
     const authHeader = req.headers.authorization;
+    const queryToken = typeof req.query.token === 'string' ? req.query.token : undefined;
+    const rawToken = authHeader?.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : queryToken;
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
+    if (rawToken) {
       try {
-        const decodedPayload = jwt.verify(token, JWT_SECRET);
+        const decodedPayload = jwt.verify(rawToken, JWT_SECRET);
         if (typeof decodedPayload === 'string') {
           throw new Error('Incorrect JWT payload');
         }

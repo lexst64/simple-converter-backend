@@ -40,5 +40,5 @@ __screenshots__/
 
 .env
 
-uploads/
-outputs/
+_uploads/
+_outputs/

@@ -29,3 +29,22 @@ export interface ConversionJobRequest {
   inputFileId: string;
   outputFormat: string;
 }
+
+export interface FileUploadResponse {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+}
+
+export interface FileResponse {
+  id: string;
+}
+
+export interface ConversionStatusResponse {
+  id: string;
+  status: ConversionStatus;
+  errorMessage?: string;
+  outputFileId?: string;
+  completedAt?: Date;
+}

@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
@@ -10,7 +10,6 @@ export const SUPPORTED_FORMATS = ['jpeg', 'jpg', 'png', 'gif', 'bmp', 'tiff', 'h
 
 // In-memory job store (for production, use a database)
 const jobStore = new Map<string, ConversionJob>();
-const activeProcesses = new Map<string, ChildProcess>();
 
 export class ConversionService {
   /**
@@ -96,7 +95,6 @@ export class ConversionService {
       ];
 
       const ffmpeg = spawn('ffmpeg', ffmpegArgs);
-      activeProcesses.set(job.id, ffmpeg);
 
       let errorOutput = '';
 
@@ -122,24 +120,16 @@ export class ConversionService {
             parseFloat(timeMatch[3]),
           );
 
+          const progress = Math.min(Math.round((currentTime / duration) * 100), 99);
 
           job.updatedAt = new Date();
           jobStore.set(job.id, job);
 
-          logger.debug({ jobId: job.id }, 'Conversion progress updated');
+          logger.debug({ jobId: job.id, progress }, 'Conversion progress updated');
         }
       });
 
       ffmpeg.on('close', (code) => {
-        activeProcesses.delete(job.id);
-
-        if (job.status === ConversionStatus.CANCELLED) {
-          FilesService.removeOutput(outputFileId);
-          logger.info({ jobId: job.id, outputFileId }, 'Conversion cancelled');
-          resolve();
-          return;
-        }
-
         if (code === 0) {
           // Conversion successful
           job.status = ConversionStatus.COMPLETED;
@@ -147,8 +137,6 @@ export class ConversionService {
           job.completedAt = new Date();
           job.updatedAt = new Date();
           jobStore.set(job.id, job);
-
-          FilesService.removeUpload(job.inputFileId);
 
           logger.info(
             { jobId: job.id, outputFileId },
@@ -176,8 +164,6 @@ export class ConversionService {
       });
 
       ffmpeg.on('error', (error) => {
-        activeProcesses.delete(job.id);
-
         job.status = ConversionStatus.FAILED;
         job.errorMessage = error.message;
         job.updatedAt = new Date();
@@ -207,15 +193,10 @@ export class ConversionService {
     }
 
     if (job.status === ConversionStatus.PROCESSING) {
-      const ffmpeg = activeProcesses.get(jobId);
       job.status = ConversionStatus.CANCELLED;
       job.updatedAt = new Date();
       jobStore.set(jobId, job);
 
-      if (ffmpeg) {
-        ffmpeg.kill('SIGTERM');
-      }
-      
       logger.info({ jobId }, 'Conversion job cancelled');
       return true;
     }
@@ -234,7 +215,7 @@ export class ConversionService {
 
     // Clean up output file if it exists
     if (job.outputFileId) {
-      const outputPath = path.join(OUTPUTS_DIR, job.outputFileId);
+      const outputPath = path.join(UPLOADS_DIR, job.outputFileId);
       if (fs.existsSync(outputPath)) {
         try {
           fs.unlinkSync(outputPath);
