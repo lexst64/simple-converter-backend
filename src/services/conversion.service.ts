@@ -5,13 +5,38 @@ import { randomUUID } from 'crypto';
 import { ConversionJob, ConversionStatus } from '../types';
 import { logger } from '../index';
 import { FilesService, OUTPUTS_DIR, UPLOADS_DIR } from './files.service';
+import { EventEmitter } from 'events';
 
 export const SUPPORTED_FORMATS = ['jpeg', 'jpg', 'png', 'gif', 'bmp', 'tiff', 'heic', 'webp', 'mp4', 'mkv', 'webm', 'avi', 'mov', 'flv', 'wmv', 'mp3', 'aac', 'wav', 'flac', 'ogg'];
 
-// In-memory job store (for production, use a database)
 const jobStore = new Map<string, ConversionJob>();
+const jobEvents = new EventEmitter();
 
 export class ConversionService {
+  /**
+   * Adds a listener for job status changes.
+   */
+  static onJobUpdate(jobId: string, listener: (job: ConversionJob) => void) {
+    jobEvents.on(jobId, listener);
+  }
+
+  /**
+   * Removes a listener for job status changes.
+   */
+  static offJobUpdate(jobId: string, listener: (job: ConversionJob) => void) {
+    jobEvents.off(jobId, listener);
+  }
+
+  /**
+   * Updates a job and emits an event.
+   */
+  static updateJob(job: ConversionJob, updates: Partial<ConversionJob>): ConversionJob {
+    const updatedJob = { ...job, ...updates, updatedAt: new Date() };
+    jobStore.set(job.id, updatedJob);
+    jobEvents.emit(job.id, updatedJob);
+    return updatedJob;
+  }
+
   /**
    * Validates if the output format is supported
    */
@@ -78,9 +103,7 @@ export class ConversionService {
     const outputPath = path.join(OUTPUTS_DIR, outputFileId);
 
     // Update job status
-    job.status = ConversionStatus.PROCESSING;
-    job.updatedAt = new Date();
-    jobStore.set(job.id, job);
+    job = this.updateJob(job, { status: ConversionStatus.PROCESSING });
 
     logger.info(
       { jobId: job.id, inputPath, outputPath },
@@ -122,8 +145,9 @@ export class ConversionService {
 
           const progress = Math.min(Math.round((currentTime / duration) * 100), 99);
 
-          job.updatedAt = new Date();
-          jobStore.set(job.id, job);
+          // We are not storing progress in the job object in this implementation,
+          // but we are updating the 'updatedAt' field.
+          this.updateJob(job, {});
 
           logger.debug({ jobId: job.id, progress }, 'Conversion progress updated');
         }
@@ -132,11 +156,11 @@ export class ConversionService {
       ffmpeg.on('close', (code) => {
         if (code === 0) {
           // Conversion successful
-          job.status = ConversionStatus.COMPLETED;
-          job.outputFileId = outputFileId;
-          job.completedAt = new Date();
-          job.updatedAt = new Date();
-          jobStore.set(job.id, job);
+          this.updateJob(job, {
+            status: ConversionStatus.COMPLETED,
+            outputFileId,
+            completedAt: new Date(),
+          });
 
           logger.info(
             { jobId: job.id, outputFileId },
@@ -146,10 +170,11 @@ export class ConversionService {
           resolve();
         } else {
           // Conversion failed
-          job.status = ConversionStatus.FAILED;
-          job.errorMessage = `FFmpeg process exited with code ${code}`;
-          job.updatedAt = new Date();
-          jobStore.set(job.id, job);
+          const errorMessage = `FFmpeg process exited with code ${code}`;
+          this.updateJob(job, {
+            status: ConversionStatus.FAILED,
+            errorMessage,
+          });
 
           // Clean up the output file if it was created
           FilesService.removeOutput(outputFileId);
@@ -164,10 +189,10 @@ export class ConversionService {
       });
 
       ffmpeg.on('error', (error) => {
-        job.status = ConversionStatus.FAILED;
-        job.errorMessage = error.message;
-        job.updatedAt = new Date();
-        jobStore.set(job.id, job);
+        this.updateJob(job, {
+          status: ConversionStatus.FAILED,
+          errorMessage: error.message,
+        });
 
         logger.error({ jobId: job.id, error: error.message }, 'FFmpeg process error');
 

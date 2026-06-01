@@ -5,6 +5,13 @@ import { JWT_SECRET, logger } from '.';
 import { AppError } from './errors';
 import pino from 'pino';
 import { pinoHttp } from 'pino-http';
+import { z } from 'zod';
+
+const UserPayloadSchema = z.object({
+  email: z.email(),
+  googleId: z.string(),
+  name: z.string(),
+});
 
 declare global {
   namespace Express {
@@ -26,27 +33,29 @@ export const jwtAuth = (exceptFor?: string[]) => {
 
     const authHeader = req.headers.authorization;
     const queryToken = typeof req.query.token === 'string' ? req.query.token : undefined;
-    const rawToken = authHeader?.startsWith('Bearer ')
-      ? authHeader.split(' ')[1]
-      : queryToken;
+    const rawToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : queryToken;
 
-    if (rawToken) {
-      try {
-        const decodedPayload = jwt.verify(rawToken, JWT_SECRET);
-        if (typeof decodedPayload === 'string') {
-          throw new Error('Incorrect JWT payload');
-        }
-        req.loggedInUser = {
-          email: decodedPayload.email,
-          googleId: decodedPayload.googleId,
-          name: decodedPayload.name,
-        };
-      } catch (error: any) {
-        throw new AppError(401, 'Incorret authentication token');
-      }
-    } else {
-      throw new AppError(401, 'Not authenticated');
+    if (!rawToken) throw new AppError(401, 'Not authenticated');
+
+    let decodedPayload;
+
+    try {
+      decodedPayload = jwt.verify(rawToken, JWT_SECRET);
+    } catch (error: any) {
+      throw new AppError(401, 'Incorret authentication token');
     }
+
+    const validation = UserPayloadSchema.safeParse(decodedPayload);
+
+    if (!validation.success) {
+      throw new AppError(401, 'Incorret authentication token');
+    }
+
+    req.loggedInUser = {
+      email: validation.data.email,
+      googleId: validation.data.googleId,
+      name: validation.data.name,
+    };
 
     next();
   };

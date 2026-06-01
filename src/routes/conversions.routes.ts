@@ -7,10 +7,6 @@ import { logger } from '../index';
 
 const router = Router();
 
-function notImplemented(res: Response) {
-  return res.status(501).json({ message: 'Not implemented' });
-}
-
 /**
  * POST /api/v1/conversions/job
  * Creates a new conversion job
@@ -51,10 +47,7 @@ router.post('/job', async (req: Request, res: Response, next) => {
 
     // Start the conversion process in the background
     ConversionService.startConversion(job).catch((error) => {
-      logger.error(
-        { jobId: job.id, error: error.message },
-        'Background conversion failed',
-      );
+      logger.error({ jobId: job.id, error: error.message }, 'Background conversion failed');
     });
 
     return res.status(201).json(job);
@@ -69,10 +62,7 @@ router.post('/job', async (req: Request, res: Response, next) => {
  */
 router.get('/job', pagination(1, 50), async (req: Request, res: Response, next) => {
   try {
-    const userId = req.loggedInUser?.googleId;
-    if (!userId) {
-      throw new AppError(401, 'User not authenticated');
-    }
+    const userId = req.loggedInUser?.googleId || '';
 
     const { limit, offset } = req.query;
     const parsedLimit = Number(limit) || 1;
@@ -97,11 +87,6 @@ router.get('/job', pagination(1, 50), async (req: Request, res: Response, next) 
  */
 router.get('/job/:id', async (req: Request, res: Response, next) => {
   try {
-    const userId = req.loggedInUser?.googleId;
-    if (!userId) {
-      throw new AppError(401, 'User not authenticated');
-    }
-
     const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
     const job = ConversionService.getJob(id);
 
@@ -109,8 +94,7 @@ router.get('/job/:id', async (req: Request, res: Response, next) => {
       throw new AppError(404, `Conversion job with ID '${id}' not found`);
     }
 
-    // Verify that the job belongs to the authenticated user
-    if (job.userId !== userId) {
+    if (job.userId !== req.loggedInUser?.googleId) {
       throw new AppError(403, 'Forbidden: This job does not belong to you');
     }
 
@@ -122,7 +106,7 @@ router.get('/job/:id', async (req: Request, res: Response, next) => {
 
 /**
  * GET /api/v1/conversions/job/:id/status
- * Gets the status of a specific conversion job
+ * Gets the status of a specific conversion job as a real-time stream (SSE)
  */
 router.get('/job/:id/status', async (req: Request, res: Response, next) => {
   try {
@@ -138,15 +122,30 @@ router.get('/job/:id/status', async (req: Request, res: Response, next) => {
       throw new AppError(404, `Conversion job with ID '${id}' not found`);
     }
 
-    // Verify that the job belongs to the authenticated user
     if (job.userId !== userId) {
       throw new AppError(403, 'Forbidden: This job does not belong to you');
     }
 
-    return res.json({
-      id: job.id,
-      status: job.status,
-      errorMessage: job.errorMessage,
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const sendUpdate = (data: object) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    sendUpdate(job);
+
+    const listener = (updatedJob: any) => {
+      sendUpdate(updatedJob);
+    };
+
+    ConversionService.onJobUpdate(id, listener);
+
+    req.on('close', () => {
+      ConversionService.offJobUpdate(id, listener);
+      res.end();
     });
   } catch (error) {
     next(error);
