@@ -7,7 +7,6 @@ import systemRoutes from './routes/system.routes';
 import authRoutes from './routes/auth.routes';
 import filesRoutes from './routes/files.routes';
 import conversionsRoutes from './routes/conversions.routes';
-import preparationsRoutes from './routes/preparations.routes';
 import { requireEnv, requireFfmpeg } from './utils';
 import { createLogger } from './logger';
 
@@ -39,7 +38,6 @@ apiV1Router.use('/', systemRoutes);
 apiV1Router.use('/auth', authRoutes);
 apiV1Router.use('/files', filesRoutes);
 apiV1Router.use('/conversions', conversionsRoutes);
-apiV1Router.use('/preparations', preparationsRoutes);
 
 app.use('/api/v1', apiV1Router);
 
