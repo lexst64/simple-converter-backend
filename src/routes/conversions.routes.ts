@@ -135,7 +135,7 @@ router.get('/job/:id/status', async (req: Request, res: Response, next) => {
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     };
 
-    sendUpdate(job);
+    sendUpdate({ status: job.status });
 
     const listener = (updatedJob: any) => {
       sendUpdate(updatedJob);

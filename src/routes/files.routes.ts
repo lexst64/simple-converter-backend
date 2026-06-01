@@ -1,10 +1,13 @@
-import { Router, Response, Request } from 'express';
+import { Router, Response, Request, NextFunction } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
 import { getFilenameExt } from '../utils';
-import { FilesService, UPLOADS_DIR } from '../services/files.service';
+import { FilesService, OUTPUTS_DIR, UPLOADS_DIR } from '../services/files.service';
 import { ConversionService } from '../services/conversion.service';
-import { FileResponse, FileUploadResponse } from '../types';
+import { FileUploadResponse } from '../types';
+import { AppError } from '../errors';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
 const MAX_FILE_SIZE = 1073741824;
@@ -39,12 +42,12 @@ router.post('/', (req: Request, res: Response) => {
     const filenameExt = getFilenameExt(file.originalname);
 
     if (filenameExt === '') {
-      FilesService.removeUpload(file.filename); 
-      return res.status(400).json({ message: 'File should have an extension' })
+      FilesService.removeUpload(file.filename);
+      return res.status(400).json({ message: 'File should have an extension' });
     }
     if (!ConversionService.isFormatSupported(filenameExt)) {
-      FilesService.removeUpload(file.filename); 
-      return res.status(400).json({ message: 'File format is not supported' })
+      FilesService.removeUpload(file.filename);
+      return res.status(400).json({ message: 'File format is not supported' });
     }
 
     // TODO: save file's meta to the database and link it to the user
@@ -60,10 +63,15 @@ router.post('/', (req: Request, res: Response) => {
   });
 });
 
-router.get('/:fileId', (req: Request, res: Response) => {
+router.get('/:fileId', (req: Request, res: Response, next: NextFunction) => {
   const fileId = typeof req.params.fileId === 'string' ? req.params.fileId : req.params.fileId[0];
-  const response: FileResponse = { id: fileId };
-  return res.json(response);
+
+  let filePath = path.join(OUTPUTS_DIR, fileId);
+  if (!fs.existsSync(filePath)) {
+    throw new AppError(404, `File with ID '${fileId}' not found`);
+  }
+
+  return res.download(filePath);
 });
 
 export default router;
