@@ -1,5 +1,5 @@
 import { Db, MongoClient, ServerApiVersion } from 'mongodb';
-import { logger, MONGODB_URI, NODE_ENV } from '.';
+import { logger, MONGODB_URI, NODE_ENV } from '@/index.js';
 
 export async function connectToDatabase(): Promise<Db> {
   const client = new MongoClient(MONGODB_URI, {

@@ -2,14 +2,14 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { errorHandler, httpLogger, jwtAuth } from './middlewares';
-import systemRoutes from './routes/system.routes';
-import authRoutes from './routes/auth.routes';
-import filesRoutes from './routes/files.routes';
-import conversionsRoutes from './routes/conversions.routes';
-import { requireEnv, requireFfmpeg } from './utils';
-import { createLogger } from './logger';
-import { connectToDatabase } from './db';
+import { errorHandler, httpLogger, jwtAuth } from '@/middlewares.js';
+import systemRoutes from '@/routes/system.routes.js';
+import authRoutes from '@/routes/auth.routes.js';
+import filesRoutes from '@/routes/files.routes.js';
+import conversionsRoutes from '@/routes/conversions.routes.js';
+import { requireEnv, requireFfmpeg } from '@/utils.js';
+import { createLogger } from '@/logger.js';
+import { connectToDatabase } from '@/db.js';
 import { Db } from 'mongodb';
 
 dotenv.config();
@@ -38,9 +38,7 @@ connectToDatabase().then((newDb) => {
 
 const apiV1Router = express.Router();
 
-apiV1Router.use(
-  jwtAuth(['/api/v1/auth/google', '/api/v1/health', '/api/v1/formats']),
-);
+apiV1Router.use(jwtAuth(['/api/v1/auth/google', '/api/v1/health', '/api/v1/formats']));
 
 apiV1Router.use('/', systemRoutes);
 apiV1Router.use('/auth', authRoutes);

@@ -1,11 +1,11 @@
 import { Router, Response, Request } from 'express';
-import { pagination } from '../middlewares';
-import { ConversionService } from '../services/conversion.service';
-import { AppError } from '../errors';
-import { logger } from '../index';
+import { pagination } from '@/middlewares.js';
+import { ConversionService } from '@/services/conversion.service.js';
+import { AppError } from '@/errors.js';
+import { logger } from '@/index.js';
 import z from 'zod';
 import { ObjectId } from 'mongodb';
-import { Job } from '../types';
+import { Job } from '@/types.js';
 
 const router = Router();
 

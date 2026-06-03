@@ -1,4 +1,4 @@
-import { NODE_ENV } from '.';
+import { NODE_ENV } from '@/index.js';
 import pino from 'pino';
 import fs from 'fs';
 import path from 'path';

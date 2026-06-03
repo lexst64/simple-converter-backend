@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
-import { db, JWT_SECRET, logger } from '..';
-import { AppError } from '../errors';
-import { User } from '../types';
+import { db, JWT_SECRET, logger } from '@/index.js';
+import { AppError } from '@/errors.js';
+import { User } from '@/types.js';
 import z from 'zod';
 
 const router = Router();

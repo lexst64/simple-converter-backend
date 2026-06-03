@@ -2,12 +2,12 @@ import { spawn } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { Job, JobStatus } from '../types';
-import { db, logger } from '../index';
-import { FileService, OUTPUTS_DIR, UPLOADS_DIR } from './file.service';
+import { Job, JobStatus } from '@/types.js';
+import { db, logger } from '@/index.js';
+import { FileService, OUTPUTS_DIR, UPLOADS_DIR } from '@/services/file.service.js';
 import { EventEmitter } from 'events';
 import { ObjectId } from 'mongodb';
-import { AppError } from '../errors';
+import { AppError } from '@/errors.js';
 
 export const SUPPORTED_FORMATS = [
   'jpeg',

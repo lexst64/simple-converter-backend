@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs';
-import { db } from '..';
-import { UserFile } from '../types';
+import { db } from '@/index.js';
+import { UserFile } from '@/types.js';
 
 const storageRoot = process.env.NODE_ENV === 'prod' ? '/var/tmp' : process.cwd();
 

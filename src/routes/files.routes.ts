@@ -1,11 +1,11 @@
 import { Router, Response, Request, NextFunction } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
-import { getFilenameExt } from '../utils';
-import { FileService, OUTPUTS_DIR, UPLOADS_DIR } from '../services/file.service';
-import { ConversionService } from '../services/conversion.service';
-import { FileUploadResponse, UserFile } from '../types';
-import { AppError } from '../errors';
+import { getFilenameExt } from '@/utils.js';
+import { FileService, OUTPUTS_DIR, UPLOADS_DIR } from '@/services/file.service.js';
+import { ConversionService } from '@/services/conversion.service.js';
+import { FileUploadResponse } from '@/types.js';
+import { AppError } from '@/errors.js';
 import path from 'path';
 import fs from 'fs';
 
