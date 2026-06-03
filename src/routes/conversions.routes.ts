@@ -1,11 +1,18 @@
 import { Router, Response, Request } from 'express';
 import { pagination } from '../middlewares';
-import { ConversionJobRequest } from '../types';
 import { ConversionService } from '../services/conversion.service';
 import { AppError } from '../errors';
 import { logger } from '../index';
+import z from 'zod';
+import { ObjectId } from 'mongodb';
+import { Job } from '../types';
 
 const router = Router();
+
+const ConversionJobRequestSchema = z.object({
+  inputFileId: z.string(),
+  outputFormat: z.string(),
+});
 
 /**
  * POST /api/v1/conversions/job
@@ -18,36 +25,28 @@ router.post('/job', async (req: Request, res: Response, next) => {
       throw new AppError(401, 'User not authenticated');
     }
 
-    const { inputFileId, outputFormat }: ConversionJobRequest = req.body;
-
-    // Validate request body
-    if (!inputFileId || !outputFormat) {
-      throw new AppError(400, 'inputFileId and outputFormat are required');
+    const validation = ConversionJobRequestSchema.safeParse(req.body);
+    if (!validation.success) {
+      throw new AppError(400, validation.error.message);
     }
 
-    if (typeof inputFileId !== 'string' || typeof outputFormat !== 'string') {
-      throw new AppError(400, 'inputFileId and outputFormat must be strings');
-    }
+    const { inputFileId, outputFormat } = validation.data;
 
-    // Validate output format
     if (!ConversionService.isFormatSupported(outputFormat)) {
-      throw new AppError(
-        400,
-        `Output format '${outputFormat}' is not supported. Supported formats: mp4, mkv, webm, avi, mov, flv, wmv, mp3, aac, wav, flac, ogg`,
-      );
+      throw new AppError(400, `Output format '${outputFormat}' is not supported.`);
     }
 
-    // Check if input file exists
     if (!ConversionService.fileExists(inputFileId)) {
       throw new AppError(404, `Input file with ID '${inputFileId}' not found`);
     }
 
-    // Create the conversion job
-    const job = ConversionService.createJob(userId, inputFileId, outputFormat);
+    const job = await ConversionService.createJob(userId, inputFileId, outputFormat);
 
-    // Start the conversion process in the background
     ConversionService.startConversion(job).catch((error) => {
-      logger.error({ jobId: job.id, error: error.message }, 'Background conversion failed');
+      logger.error(
+        { jobId: job._id.toString(), error: error.message },
+        'Background conversion failed',
+      );
     });
 
     return res.status(201).json(job);
@@ -68,7 +67,7 @@ router.get('/job', pagination(1, 50), async (req: Request, res: Response, next) 
     const parsedLimit = Number(limit) || 1;
     const parsedOffset = Number(offset) || 0;
 
-    const jobs = ConversionService.getUserJobs(userId, parsedLimit, parsedOffset);
+    const jobs = await ConversionService.getUserJobs(userId, parsedLimit, parsedOffset);
 
     return res.json({
       jobs,
@@ -86,22 +85,22 @@ router.get('/job', pagination(1, 50), async (req: Request, res: Response, next) 
  * Gets a specific conversion job details
  */
 router.get('/job/:id', async (req: Request, res: Response, next) => {
-  try {
-    const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
-    const job = ConversionService.getJob(id);
-
-    if (!job) {
-      throw new AppError(404, `Conversion job with ID '${id}' not found`);
-    }
-
-    if (job.userId !== req.loggedInUser?.googleId) {
-      throw new AppError(403, 'Forbidden: This job does not belong to you');
-    }
-
-    return res.json(job);
-  } catch (error) {
-    next(error);
+  const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
+  if (!ObjectId.isValid(id)) {
+    throw new AppError(400, 'Invalid ID format');
   }
+
+  const job = await ConversionService.getJob(new ObjectId(id));
+
+  if (!job) {
+    throw new AppError(404, `Conversion job with ID '${id}' not found`);
+  }
+
+  if (job.userId !== req.loggedInUser?.googleId) {
+    throw new AppError(403, 'Forbidden: This job does not belong to you');
+  }
+
+  return res.json(job);
 });
 
 /**
@@ -116,7 +115,11 @@ router.get('/job/:id/status', async (req: Request, res: Response, next) => {
     }
 
     const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
-    const job = ConversionService.getJob(id);
+    if (!ObjectId.isValid(id)) {
+      throw new AppError(400, 'Invalid ID format');
+    }
+
+    const job = await ConversionService.getJob(new ObjectId(id));
 
     if (!job) {
       throw new AppError(404, `Conversion job with ID '${id}' not found`);
@@ -137,8 +140,8 @@ router.get('/job/:id/status', async (req: Request, res: Response, next) => {
 
     sendUpdate({ status: job.status });
 
-    const listener = (updatedJob: any) => {
-      sendUpdate(updatedJob);
+    const listener = (updatedJob: Job) => {
+      sendUpdate({ status: updatedJob.status });
     };
 
     ConversionService.onJobUpdate(id, listener);

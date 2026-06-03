@@ -9,6 +9,8 @@ import filesRoutes from './routes/files.routes';
 import conversionsRoutes from './routes/conversions.routes';
 import { requireEnv, requireFfmpeg } from './utils';
 import { createLogger } from './logger';
+import { connectToDatabase } from './db';
+import { Db } from 'mongodb';
 
 dotenv.config();
 
@@ -16,6 +18,7 @@ export const PORT = requireEnv('PORT');
 export const FRONTEND_URL = requireEnv('FRONTEND_URL');
 export const JWT_SECRET = requireEnv('JWT_SECRET');
 export const NODE_ENV = requireEnv('NODE_ENV');
+export const MONGODB_URI = requireEnv('MONGODB_URI');
 
 requireFfmpeg();
 
@@ -28,10 +31,15 @@ app.use(cookieParser());
 app.use(httpLogger(logger));
 app.use(cors({ origin: FRONTEND_URL || true, credentials: true }));
 
+export let db: Db;
+connectToDatabase().then((newDb) => {
+  db = newDb;
+});
+
 const apiV1Router = express.Router();
 
 apiV1Router.use(
-  jwtAuth(['/api/v1/auth', '/api/v1/auth/google', '/api/v1/health', '/api/v1/formats']),
+  jwtAuth(['/api/v1/auth/google', '/api/v1/health', '/api/v1/formats']),
 );
 
 apiV1Router.use('/', systemRoutes);

@@ -2,9 +2,9 @@ import { Router, Response, Request, NextFunction } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
 import { getFilenameExt } from '../utils';
-import { FilesService, OUTPUTS_DIR, UPLOADS_DIR } from '../services/files.service';
+import { FileService, OUTPUTS_DIR, UPLOADS_DIR } from '../services/file.service';
 import { ConversionService } from '../services/conversion.service';
-import { FileUploadResponse } from '../types';
+import { FileUploadResponse, UserFile } from '../types';
 import { AppError } from '../errors';
 import path from 'path';
 import fs from 'fs';
@@ -22,7 +22,7 @@ const upload = multer({ storage, limits: { fileSize: MAX_FILE_SIZE } });
 router.post('/', (req: Request, res: Response) => {
   // TODO: multer writes the file to the disk until it realizes that it is over MAX_FILE_SIZE
   // after which it deletes the file. Need to look at "content-length" header.
-  upload.single('file')(req, res, (err: any) => {
+  upload.single('file')(req, res, async (err: any) => {
     if (err) {
       // multer reports a file-too-large error with code "LIMIT_FILE_SIZE"
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -39,35 +39,58 @@ router.post('/', (req: Request, res: Response) => {
       return res.status(400).json({ message: 'File is required' });
     }
 
+    const userId = req.loggedInUser?.googleId;
+    if (!userId) {
+      await FileService.removeUpload(file.filename);
+      throw new AppError(401, 'User not authenticated');
+    }
+
+    const userFile = await FileService.registerUpload({
+      fileName: file.filename,
+      mimeType: file.mimetype,
+      originalName: file.originalname,
+      size: file.size,
+      userId: userId,
+    });
+
+    if (!userFile) {
+      // file database registration failed, abort
+      await FileService.removeUpload(file.filename);
+      return res.status(500).json({ message: 'File upload failed' });
+    }
+
     const filenameExt = getFilenameExt(file.originalname);
 
     if (filenameExt === '') {
-      FilesService.removeUpload(file.filename);
+      await FileService.removeUpload(file.filename);
       return res.status(400).json({ message: 'File should have an extension' });
     }
     if (!ConversionService.isFormatSupported(filenameExt)) {
-      FilesService.removeUpload(file.filename);
+      await FileService.removeUpload(file.filename);
       return res.status(400).json({ message: 'File format is not supported' });
     }
 
-    // TODO: save file's meta to the database and link it to the user
-
     const response: FileUploadResponse = {
-      id: file.filename,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      size: file.size,
+      id: userFile._id,
+      ...userFile,
     };
 
     return res.status(201).json(response);
   });
 });
 
-router.get('/:fileId', (req: Request, res: Response, next: NextFunction) => {
+router.get('/:fileId', async (req: Request, res: Response, next: NextFunction) => {
+  const userId = req.loggedInUser?.googleId;
+  if (!userId) {
+    throw new AppError(401, 'User not authenticated');
+  }
+
   const fileId = typeof req.params.fileId === 'string' ? req.params.fileId : req.params.fileId[0];
 
+  const userFile = await FileService.getUserFile(userId, fileId);
   let filePath = path.join(OUTPUTS_DIR, fileId);
-  if (!fs.existsSync(filePath)) {
+
+  if (!userFile || !fs.existsSync(filePath)) {
     throw new AppError(404, `File with ID '${fileId}' not found`);
   }
 

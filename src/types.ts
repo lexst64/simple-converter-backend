@@ -1,10 +1,30 @@
+import { ObjectId } from 'mongodb';
+
+export interface User {
+  _id: string; // googleId
+  email: string;
+  name: string;
+  picture: string;
+  createdAt: Date;
+}
+
 export interface UserPayload {
   googleId: string;
   email: string;
   name: string;
 }
 
-export enum ConversionStatus {
+export interface UserFile {
+  _id: string;
+  userId: string;
+  type: 'upload' | 'output';
+  originalName?: string;
+  mimeType?: string;
+  size: number;
+  createdAt: Date;
+}
+
+export enum JobStatus {
   PENDING = 'pending',
   PROCESSING = 'processing',
   COMPLETED = 'completed',
@@ -12,12 +32,12 @@ export enum ConversionStatus {
   CANCELLED = 'cancelled',
 }
 
-export interface ConversionJob {
-  id: string;
+export interface Job {
+  _id: ObjectId;
   userId: string;
   inputFileId: string;
   outputFormat: string;
-  status: ConversionStatus;
+  status: JobStatus;
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
@@ -25,25 +45,28 @@ export interface ConversionJob {
   outputFileId?: string;
 }
 
-export interface ConversionJobRequest {
+export interface JobRequest {
   inputFileId: string;
   outputFormat: string;
 }
 
 export interface FileUploadResponse {
   id: string;
-  originalName: string;
-  mimeType: string;
+  userId: string;
+  type: 'upload' | 'output';
+  originalName?: string;
+  mimeType?: string;
   size: number;
+  createdAt: Date;
 }
 
 export interface FileResponse {
   id: string;
 }
 
-export interface ConversionStatusResponse {
+export interface JobStatusResponse {
   id: string;
-  status: ConversionStatus;
+  status: JobStatus;
   errorMessage?: string;
   outputFileId?: string;
   completedAt?: Date;

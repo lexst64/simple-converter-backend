@@ -1,11 +1,20 @@
 import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
-import { JWT_SECRET } from '..';
+import { db, JWT_SECRET, logger } from '..';
 import { AppError } from '../errors';
+import { User } from '../types';
+import z from 'zod';
 
 const router = Router();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+const TicketPayloadSchema = z.object({
+  sub: z.string(),
+  email: z.email(),
+  name: z.string(),
+  picture: z.string(),
+});
 
 router.post('/google', async (req, res) => {
   const { token } = req.body || {};
@@ -25,24 +34,36 @@ router.post('/google', async (req, res) => {
     if (!payload) {
       throw new AppError(400, 'Token is broken');
     }
+    const validation = TicketPayloadSchema.safeParse(payload);
+    if (!validation.success) {
+      throw new AppError(400, 'Incorrect ticken payload');
+    }
+    const { sub: googleId, email, name, picture } = validation.data;
 
-    const { sub: googleId, email, name, picture } = payload;
+    const users = db.collection<User>('users');
+    let user = await users.findOne({ _id: googleId });
 
-    /* 
-        let user = await db.findUserByEmail(email);
-        
-        if (!user) {
-            user = await db.createUser({ googleId, email, name, picture });
-        }
-        */
+    if (!user) {
+      const result = await users.insertOne({
+        _id: googleId,
+        email,
+        name,
+        picture,
+        createdAt: new Date(),
+      });
+      user = await users.findOne({ _id: result.insertedId });
+    }
 
-    // Dummy user object for this example
-    const user = { googleId, email, name, picture };
+    if (!user) {
+      throw new AppError(500, 'Failed to create or find user');
+    }
 
     const appToken = jwt.sign(
-      { googleId: user.googleId, name: user.name, email: user.email, picture: user.picture },
+      { googleId: googleId, name: user.name, email: user.email, picture: user.picture },
       JWT_SECRET,
-      { expiresIn: '1d' },
+      {
+        expiresIn: '1d',
+      },
     );
 
     return res.status(200).json({
@@ -51,6 +72,7 @@ router.post('/google', async (req, res) => {
       user: { name: user.name, email: user.email, picture: user.picture },
     });
   } catch (error) {
+    logger.info(error);
     throw new AppError(401, 'Invalid Google token');
   }
 });

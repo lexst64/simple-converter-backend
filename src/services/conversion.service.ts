@@ -1,39 +1,68 @@
 import { spawn } from 'child_process';
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { ConversionJob, ConversionStatus } from '../types';
-import { logger } from '../index';
-import { FilesService, OUTPUTS_DIR, UPLOADS_DIR } from './files.service';
+import { Job, JobStatus } from '../types';
+import { db, logger } from '../index';
+import { FileService, OUTPUTS_DIR, UPLOADS_DIR } from './file.service';
 import { EventEmitter } from 'events';
+import { ObjectId } from 'mongodb';
+import { AppError } from '../errors';
 
-export const SUPPORTED_FORMATS = ['jpeg', 'jpg', 'png', 'gif', 'bmp', 'tiff', 'heic', 'webp', 'mp4', 'mkv', 'webm', 'avi', 'mov', 'flv', 'wmv', 'mp3', 'aac', 'wav', 'flac', 'ogg'];
+export const SUPPORTED_FORMATS = [
+  'jpeg',
+  'jpg',
+  'png',
+  'gif',
+  'bmp',
+  'tiff',
+  'heic',
+  'webp',
+  'mp4',
+  'mkv',
+  'webm',
+  'avi',
+  'mov',
+  'flv',
+  'wmv',
+  'mp3',
+  'aac',
+  'wav',
+  'flac',
+  'ogg',
+];
 
-const jobStore = new Map<string, ConversionJob>();
 const jobEvents = new EventEmitter();
 
 export class ConversionService {
   /**
    * Adds a listener for job status changes.
    */
-  static onJobUpdate(jobId: string, listener: (job: ConversionJob) => void) {
+  static onJobUpdate(jobId: string, listener: (job: Job) => void) {
     jobEvents.on(jobId, listener);
   }
 
   /**
    * Removes a listener for job status changes.
    */
-  static offJobUpdate(jobId: string, listener: (job: ConversionJob) => void) {
+  static offJobUpdate(jobId: string, listener: (job: Job) => void) {
     jobEvents.off(jobId, listener);
   }
 
   /**
    * Updates a job and emits an event.
    */
-  static updateJob(job: ConversionJob, updates: Partial<ConversionJob>): ConversionJob {
+  static async updateJob(job: Job, updates: Partial<Job>): Promise<Job> {
     const updatedJob = { ...job, ...updates, updatedAt: new Date() };
-    jobStore.set(job.id, updatedJob);
-    jobEvents.emit(job.id, updatedJob);
+
+    const jobs = db.collection<Job>('jobs');
+    const res = await jobs.findOneAndReplace({ _id: job._id }, updatedJob, {
+      includeResultMetadata: true,
+    });
+    if (!res.ok) {
+      throw new AppError(500, 'Failed to update job state');
+    }
+    jobEvents.emit(job._id.toString(), updatedJob);
     return updatedJob;
   }
 
@@ -47,32 +76,36 @@ export class ConversionService {
   /**
    * Validates if input file exists
    */
-  static fileExists(fileId: string): boolean {
+  static async fileExists(fileId: string): Promise<boolean> {
     const filePath = path.join(UPLOADS_DIR, fileId);
-    return fs.existsSync(filePath);
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
    * Creates a new conversion job
    */
-  static createJob(
-    userId: string,
-    inputFileId: string,
-    outputFormat: string,
-  ): ConversionJob {
-    const jobId = randomUUID();
-    const job: ConversionJob = {
-      id: jobId,
+  static async createJob(userId: string, inputFileId: string, outputFormat: string): Promise<Job> {
+    const jobs = db.collection<Job>('jobs');
+    const res = await jobs.insertOne({
+      _id: new ObjectId(),
       userId,
       inputFileId,
       outputFormat: outputFormat.toLowerCase(),
-      status: ConversionStatus.PENDING,
+      status: JobStatus.PENDING,
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    });
+    const job = await jobs.findOne({ _id: res.insertedId });
+    if (!job) {
+      throw new AppError(500, 'Failed initializing a job');
+    }
 
-    jobStore.set(jobId, job);
-    logger.info({ jobId, userId, inputFileId, outputFormat }, 'Conversion job created');
+    logger.info(job, 'Conversion job created');
 
     return job;
   }
@@ -80,39 +113,41 @@ export class ConversionService {
   /**
    * Gets a job by ID
    */
-  static getJob(jobId: string): ConversionJob | undefined {
-    return jobStore.get(jobId);
+  static async getJob(jobId: ObjectId): Promise<Job | undefined> {
+    const jobs = db.collection<Job>('jobs');
+    const job = await jobs.findOne({ _id: jobId });
+    if (!job) return undefined;
+    return job;
   }
 
   /**
    * Gets all jobs for a user
    */
-  static getUserJobs(userId: string, limit: number, offset: number): ConversionJob[] {
-    return Array.from(jobStore.values())
-      .filter((job) => job.userId === userId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(offset, offset + limit);
+  static async getUserJobs(userId: string, limit: number, offset: number): Promise<Job[]> {
+    const jobs = db.collection<Job>('jobs');
+
+    return await jobs.find({ userId }).sort({ createdAt: -1 }).skip(offset).limit(limit).toArray();
   }
 
   /**
    * Starts the conversion process
    */
-  static async startConversion(job: ConversionJob): Promise<void> {
+  static async startConversion(job: Job): Promise<void> {
     const inputPath = path.join(UPLOADS_DIR, job.inputFileId);
     const outputFileId = `${randomUUID()}.${job.outputFormat}`;
     const outputPath = path.join(OUTPUTS_DIR, outputFileId);
 
-    // Update job status
-    job = this.updateJob(job, { status: ConversionStatus.PROCESSING });
+    job = await this.updateJob(job, { status: JobStatus.PROCESSING });
 
     logger.info(
-      { jobId: job.id, inputPath, outputPath },
+      { jobId: job._id.toHexString(), inputPath, outputPath },
       'Starting FFmpeg conversion',
     );
 
     return new Promise((resolve, reject) => {
       const ffmpegArgs = [
-        '-i', inputPath,
+        '-i',
+        inputPath,
         '-y', // Overwrite output file
         outputPath,
       ];
@@ -122,7 +157,7 @@ export class ConversionService {
       let errorOutput = '';
 
       // Parse FFmpeg stderr for progress information
-      ffmpeg.stderr.on('data', (data) => {
+      ffmpeg.stderr.on('data', async (data) => {
         const output = data.toString();
         errorOutput += output;
 
@@ -147,23 +182,30 @@ export class ConversionService {
 
           // We are not storing progress in the job object in this implementation,
           // but we are updating the 'updatedAt' field.
-          this.updateJob(job, {});
+          await this.updateJob(job, {});
 
-          logger.debug({ jobId: job.id, progress }, 'Conversion progress updated');
+          logger.debug({ jobId: job._id.toString(), progress }, 'Conversion progress updated');
         }
       });
 
-      ffmpeg.on('close', (code) => {
+      ffmpeg.on('close', async (code) => {
         if (code === 0) {
           // Conversion successful
-          this.updateJob(job, {
-            status: ConversionStatus.COMPLETED,
+          await this.updateJob(job, {
+            status: JobStatus.COMPLETED,
             outputFileId,
             completedAt: new Date(),
           });
+          const outputFileSize = (await fs.stat(outputPath)).size;
+
+          await FileService.registerOutput({
+            fileName: outputFileId,
+            size: outputFileSize,
+            userId: job.userId,
+          });
 
           logger.info(
-            { jobId: job.id, outputFileId },
+            { jobId: job._id.toString(), outputFileId },
             'Conversion completed successfully',
           );
 
@@ -172,15 +214,15 @@ export class ConversionService {
           // Conversion failed
           const errorMessage = `FFmpeg process exited with code ${code}`;
           this.updateJob(job, {
-            status: ConversionStatus.FAILED,
+            status: JobStatus.FAILED,
             errorMessage,
           });
 
           // Clean up the output file if it was created
-          FilesService.removeOutput(outputFileId);
+          FileService.removeOutput(outputFileId);
 
           logger.error(
-            { jobId: job.id, code, stderr: errorOutput },
+            { jobId: job._id.toString(), code, stderr: errorOutput },
             'Conversion failed',
           );
 
@@ -188,13 +230,16 @@ export class ConversionService {
         }
       });
 
-      ffmpeg.on('error', (error) => {
+      ffmpeg.on('error', async (error) => {
         this.updateJob(job, {
-          status: ConversionStatus.FAILED,
+          status: JobStatus.FAILED,
           errorMessage: error.message,
         });
 
-        logger.error({ jobId: job.id, error: error.message }, 'FFmpeg process error');
+        // Clean up the output file if it was created
+        await FileService.removeOutput(outputFileId);
+
+        logger.error({ jobId: job._id.toString(), error: error.message }, 'FFmpeg process error');
 
         reject(error);
       });
@@ -207,54 +252,6 @@ export class ConversionService {
   private static timeToSeconds(hours: number, minutes: number, seconds: number): number {
     return hours * 3600 + minutes * 60 + seconds;
   }
-
-  /**
-   * Cancels a conversion job
-   */
-  static cancelJob(jobId: string): boolean {
-    const job = jobStore.get(jobId);
-    if (!job) {
-      return false;
-    }
-
-    if (job.status === ConversionStatus.PROCESSING) {
-      job.status = ConversionStatus.CANCELLED;
-      job.updatedAt = new Date();
-      jobStore.set(jobId, job);
-
-      logger.info({ jobId }, 'Conversion job cancelled');
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * Deletes a completed job and cleans up output file
-   */
-  static deleteJob(jobId: string): boolean {
-    const job = jobStore.get(jobId);
-    if (!job) {
-      return false;
-    }
-
-    // Clean up output file if it exists
-    if (job.outputFileId) {
-      const outputPath = path.join(UPLOADS_DIR, job.outputFileId);
-      if (fs.existsSync(outputPath)) {
-        try {
-          fs.unlinkSync(outputPath);
-          logger.info({ jobId, outputFileId: job.outputFileId }, 'Output file deleted');
-        } catch (error) {
-          logger.error({ jobId, error }, 'Failed to delete output file');
-        }
-      }
-    }
-
-    jobStore.delete(jobId);
-    logger.info({ jobId }, 'Conversion job deleted');
-    return true;
-  }
 }
 
-export const ConversionStatusEnum = ConversionStatus;
+export const ConversionStatusEnum = JobStatus;
