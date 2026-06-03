@@ -29,7 +29,7 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 app.use(httpLogger(logger));
-app.use(cors({ origin: FRONTEND_URL || true, credentials: true }));
+app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 
 export let db: Db;
 connectToDatabase().then((newDb) => {
