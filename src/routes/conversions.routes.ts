@@ -104,6 +104,12 @@ router.get('/job/:id', async (req: Request, res: Response, next) => {
 });
 
 /**
+ * DELETE /api/v1/conversions/job/:id
+ * Deletes a specified job unless it is pending or in progress
+ */
+router.delete('/job/:id', async (req, res) => {});
+
+/**
  * GET /api/v1/conversions/job/:id/status
  * Gets the status of a specific conversion job as a real-time stream (SSE)
  */
@@ -138,10 +144,10 @@ router.get('/job/:id/status', async (req: Request, res: Response, next) => {
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     };
 
-    sendUpdate({ status: job.status });
+    sendUpdate({ status: job.status, progress: job.progress });
 
     const listener = (updatedJob: Job) => {
-      sendUpdate({ status: updatedJob.status });
+      sendUpdate({ status: updatedJob.status, progress: updatedJob.progress });
     };
 
     ConversionService.onJobUpdate(id, listener);

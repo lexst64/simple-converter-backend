@@ -37,6 +37,7 @@ export interface Job {
   userId: string;
   inputFileId: string;
   outputFormat: string;
+  progress: number;
   status: JobStatus;
   createdAt: Date;
   updatedAt: Date;

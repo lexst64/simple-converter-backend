@@ -97,6 +97,7 @@ export class ConversionService {
       inputFileId,
       outputFormat: outputFormat.toLowerCase(),
       status: JobStatus.PENDING,
+      progress: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -149,42 +150,61 @@ export class ConversionService {
         '-i',
         inputPath,
         '-y', // Overwrite output file
+        '-progress',
+        'pipe:2',
+        '-nostats',
         outputPath,
       ];
 
       const ffmpeg = spawn('ffmpeg', ffmpegArgs);
 
+      let duration = 0;
       let errorOutput = '';
+
+      // Get total duration from FFmpeg's initial output
+      const ffprobe = spawn('ffprobe', [
+        '-v',
+        'error',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'default=noprint_wrappers=1:nokey=1',
+        inputPath,
+      ]);
+
+      ffprobe.stdout.on('data', (data) => {
+        duration = parseFloat(data.toString());
+      });
+
+      ffprobe.on('close', () => {
+        if (duration === 0) {
+          logger.warn(
+            { jobId: job._id.toHexString() },
+            'Could not determine video duration. Progress will not be reported.',
+          );
+        }
+      });
+
+      let prevProgress = 0;
 
       // Parse FFmpeg stderr for progress information
       ffmpeg.stderr.on('data', async (data) => {
         const output = data.toString();
         errorOutput += output;
 
-        // Extract duration and current time to calculate progress
-        const durationMatch = output.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
-        const timeMatch = output.match(/time=(\d+):(\d+):(\d+\.\d+)/);
+        if (duration > 0) {
+          const timeMatch = output.match(/out_time_ms=(\d+)/);
+          if (timeMatch) {
+            const currentTime = parseFloat(timeMatch[1]) / 1_000_000;
+            const progress = Math.min(Math.round((currentTime / duration) * 100), 99);
 
-        if (durationMatch && timeMatch) {
-          const duration = this.timeToSeconds(
-            parseInt(durationMatch[1]),
-            parseInt(durationMatch[2]),
-            parseFloat(durationMatch[3]),
-          );
+            if (prevProgress === progress) return;
 
-          const currentTime = this.timeToSeconds(
-            parseInt(timeMatch[1]),
-            parseInt(timeMatch[2]),
-            parseFloat(timeMatch[3]),
-          );
+            prevProgress = progress;
 
-          const progress = Math.min(Math.round((currentTime / duration) * 100), 99);
-
-          // We are not storing progress in the job object in this implementation,
-          // but we are updating the 'updatedAt' field.
-          await this.updateJob(job, {});
-
-          logger.debug({ jobId: job._id.toString(), progress }, 'Conversion progress updated');
+            await this.updateJob(job, { progress });
+            logger.debug({ jobId: job._id.toString(), progress }, 'Conversion progress updated');
+          }
         }
       });
 
@@ -195,6 +215,7 @@ export class ConversionService {
             status: JobStatus.COMPLETED,
             outputFileId,
             completedAt: new Date(),
+            progress: 100,
           });
           const outputFileSize = (await fs.stat(outputPath)).size;
 
@@ -244,13 +265,6 @@ export class ConversionService {
         reject(error);
       });
     });
-  }
-
-  /**
-   * Helper function to convert time string (HH:MM:SS.ms) to seconds
-   */
-  private static timeToSeconds(hours: number, minutes: number, seconds: number): number {
-    return hours * 3600 + minutes * 60 + seconds;
   }
 }
 
