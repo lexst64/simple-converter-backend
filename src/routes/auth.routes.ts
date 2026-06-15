@@ -15,7 +15,7 @@ const TicketPayloadSchema = z.object({
   sub: z.string(),
   email: z.email(),
   name: z.string(),
-  picture: z.string(),
+  picture: z.url().optional(),
 });
 
 router.post('/google', async (req, res) => {
@@ -38,7 +38,7 @@ router.post('/google', async (req, res) => {
     }
     const validation = TicketPayloadSchema.safeParse(payload);
     if (!validation.success) {
-      throw new AppError(400, 'Incorrect ticken payload');
+      throw new AppError(400, 'Invalid ticket payload');
     }
     const { sub: googleId, email, name, picture } = validation.data;
 
@@ -46,14 +46,15 @@ router.post('/google', async (req, res) => {
     let user = await users.findOne({ _id: googleId });
 
     if (!user) {
-      const result = await users.insertOne({
+      const newUser: User = {
         _id: googleId,
         email,
         name,
-        picture,
+        picture: picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`,
         createdAt: new Date(),
-      });
-      user = await users.findOne({ _id: result.insertedId });
+      };
+      await users.insertOne(newUser);
+      user = newUser;
     }
 
     if (!user) {
@@ -74,7 +75,7 @@ router.post('/google', async (req, res) => {
       user: { name: user.name, email: user.email, picture: user.picture },
     });
   } catch (error) {
-    logger.info(error);
+    logger.warn({ error }, 'Google token verification failed');
     throw new AppError(401, 'Invalid Google token');
   }
 });
@@ -84,6 +85,7 @@ router.get('/me', async (req, res) => {
     googleId: req.loggedInUser?.googleId,
     email: req.loggedInUser?.email,
     name: req.loggedInUser?.name,
+    picture: req.loggedInUser?.picture,
   });
 });
 

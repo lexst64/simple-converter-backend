@@ -12,6 +12,7 @@ const UserPayloadSchema = z.object({
   email: z.email(),
   googleId: z.string(),
   name: z.string(),
+  picture: z.string().optional(),
 });
 
 declare global {
@@ -27,7 +28,8 @@ declare global {
 
 export const jwtAuth = (exceptFor?: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (exceptFor && exceptFor.includes(req.originalUrl)) {
+    const requestPath = req.originalUrl.split('?')[0];
+    if (exceptFor && exceptFor.includes(requestPath)) {
       next();
       return;
     }
@@ -56,6 +58,7 @@ export const jwtAuth = (exceptFor?: string[]) => {
       email: validation.data.email,
       googleId: validation.data.googleId,
       name: validation.data.name,
+      picture: validation.data.picture,
     };
 
     next();
