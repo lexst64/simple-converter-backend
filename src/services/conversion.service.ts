@@ -125,6 +125,15 @@ export class ConversionService {
   }
 
   /**
+   * Deletes a job by ID
+   */
+  static async deleteJob(jobId: ObjectId): Promise<boolean> {
+    const jobs = db.collection<Job>('jobs');
+    const result = await jobs.deleteOne({ _id: jobId });
+    return result.deletedCount === 1;
+  }
+
+  /**
    * Gets all jobs for a user
    */
   static async getUserJobs(userId: string, limit: number, offset: number): Promise<Job[]> {

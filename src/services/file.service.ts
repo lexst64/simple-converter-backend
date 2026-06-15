@@ -59,14 +59,26 @@ export class FileService {
     return userFile;
   }
 
-  static async removeUpload(fileName: string): Promise<void> {
+  private static async removeFile(param: string | ObjectId, directory: string): Promise<void> {
     const files = db.collection<UserFile>('files');
-    const file = await files.findOne({ fileName });
+    let file: UserFile | null = null;
+    let fileName: string | undefined;
+
+    if (param instanceof ObjectId) {
+      file = await files.findOne({ _id: param });
+      fileName = file?.fileName;
+    } else {
+      fileName = param;
+      file = await files.findOne({ fileName });
+    }
+
     if (!file) {
       // If no db record, still try to delete from filesystem if it exists
-      const filePath = path.join(UPLOADS_DIR, fileName);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      if (fileName) {
+        const filePath = path.join(directory, fileName);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
       }
       return;
     }
@@ -75,7 +87,7 @@ export class FileService {
     const res = await files.deleteOne({ _id: file._id });
 
     if (res.deletedCount === 1) {
-      const filePath = path.join(UPLOADS_DIR, fileName);
+      const filePath = path.join(directory, file.fileName);
       if (fs.existsSync(filePath)) {
         try {
           fs.unlinkSync(filePath);
@@ -90,35 +102,16 @@ export class FileService {
     }
   }
 
-  static async removeOutput(fileName: string): Promise<void> {
-    const files = db.collection<UserFile>('files');
-    const file = await files.findOne({ fileName });
-    if (!file) {
-      // If no db record, still try to delete from filesystem if it exists
-      const filePath = path.join(OUTPUTS_DIR, fileName);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-      return;
-    }
+  static async removeUpload(fileName: string): Promise<void>;
+  static async removeUpload(fileId: ObjectId): Promise<void>;
+  static async removeUpload(param: string | ObjectId): Promise<void> {
+    return this.removeFile(param, UPLOADS_DIR);
+  }
 
-    const oldDeletedAt = file.deletedAt;
-    const res = await files.deleteOne({ _id: file._id });
-
-    if (res.deletedCount === 1) {
-      const filePath = path.join(OUTPUTS_DIR, fileName);
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-        } catch (error) {
-          // If file deletion fails, restore the previous status
-          await files.updateOne({ _id: file._id }, { $set: { deletedAt: oldDeletedAt } });
-          throw new Error(
-            `Failed to delete file ${file.fileName} from filesystem, database status restored.`,
-          );
-        }
-      }
-    }
+  static async removeOutput(fileName: string): Promise<void>;
+  static async removeOutput(fileId: ObjectId): Promise<void>;
+  static async removeOutput(param: string | ObjectId): Promise<void> {
+    return this.removeFile(param, OUTPUTS_DIR);
   }
 
   static async getUserFile(userId: string, fileId: ObjectId): Promise<UserFile | undefined> {
