@@ -1,5 +1,4 @@
 import express from 'express';
-import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { errorHandler, httpLogger, jwtAuth } from '@/middlewares.js';
@@ -7,22 +6,16 @@ import systemRoutes from '@/routes/system.routes.js';
 import authRoutes from '@/routes/auth.routes.js';
 import filesRoutes from '@/routes/files.routes.js';
 import conversionsRoutes from '@/routes/conversions.routes.js';
-import { requireEnv, requireFfmpeg } from '@/utils.js';
-import { createLogger } from '@/logger.js';
-import { connectToDatabase } from '@/db.js';
-import { Db } from 'mongodb';
-
-dotenv.config();
-
-export const PORT = requireEnv('PORT');
-export const FRONTEND_URL = requireEnv('FRONTEND_URL');
-export const JWT_SECRET = requireEnv('JWT_SECRET');
-export const NODE_ENV = requireEnv('NODE_ENV');
-export const MONGODB_URI = requireEnv('MONGODB_URI');
+import { requireFfmpeg } from '@/utils.js';
+import { logger } from '@/logger.js';
+import { connectToDatabase, closeDatabaseConnection } from '@/db.js';
+import { PORT, FRONTEND_URL } from '@/config.js';
 
 requireFfmpeg();
 
-export const logger = createLogger();
+export { logger };
+export { PORT, FRONTEND_URL, JWT_SECRET, NODE_ENV, MONGODB_URI } from '@/config.js';
+export { db } from '@/db.js';
 
 const app = express();
 
@@ -30,11 +23,6 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(httpLogger(logger));
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));
-
-export let db: Db;
-connectToDatabase().then((newDb) => {
-  db = newDb;
-});
 
 const apiV1Router = express.Router();
 
@@ -49,6 +37,20 @@ app.use('/api/v1', apiV1Router);
 
 app.use(errorHandler());
 
+const gracefulShutdown = async (signal: string) => {
+  logger.info(`Received ${signal}. Shutting down gracefully...`);
+  try {
+    await closeDatabaseConnection();
+    process.exit(0);
+  } catch (error) {
+    logger.error({ error }, 'Error during database disconnection');
+    process.exit(1);
+  }
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
 process.on('uncaughtException', (err) => {
   logger.error({ err }, 'Uncaught Exception');
   process.exit(1);
@@ -59,4 +61,10 @@ process.on('unhandledRejection', (err) => {
   process.exit(1);
 });
 
-app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
+try {
+  await connectToDatabase();
+  app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
+} catch (error) {
+  logger.error({ error }, 'Failed to start application');
+  process.exit(1);
+}
