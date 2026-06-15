@@ -2,7 +2,7 @@ import { Router, Response, Request } from 'express';
 import { pagination } from '@/middlewares.js';
 import { ConversionService } from '@/services/conversion.service.js';
 import { AppError } from '@/errors.js';
-import { logger } from '@/index.js';
+import { logger } from '@/logger.js';
 import z from 'zod';
 import { ObjectId } from 'mongodb';
 import { Job } from '@/types.js';

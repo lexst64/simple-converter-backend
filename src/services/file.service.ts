@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import { db } from '@/index.js';
+import { db } from '@/db.js';
 import { UserFile } from '@/types.js';
 import { ObjectId } from 'mongodb';
 

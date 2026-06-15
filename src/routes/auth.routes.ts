@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
-import { db, JWT_SECRET, logger } from '@/index.js';
+import { db } from '@/db.js';
+import { JWT_SECRET } from '@/config.js';
+import { logger } from '@/logger.js';
 import { AppError } from '@/errors.js';
 import { User } from '@/types.js';
 import z from 'zod';

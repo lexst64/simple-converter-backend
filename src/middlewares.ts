@@ -1,7 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
 import { UserPayload } from '@/types.js';
 import jwt from 'jsonwebtoken';
-import { JWT_SECRET, logger } from '@/index.js';
+import { JWT_SECRET } from '@/config.js';
+import { logger } from '@/logger.js';
 import { AppError } from '@/errors.js';
 import pino from 'pino';
 import { pinoHttp } from 'pino-http';

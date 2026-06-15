@@ -13,10 +13,6 @@ import { PORT, FRONTEND_URL } from '@/config.js';
 
 requireFfmpeg();
 
-export { logger };
-export { PORT, FRONTEND_URL, JWT_SECRET, NODE_ENV, MONGODB_URI } from '@/config.js';
-export { db } from '@/db.js';
-
 const app = express();
 
 app.use(express.json());
