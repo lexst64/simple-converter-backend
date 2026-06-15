@@ -36,11 +36,11 @@ router.post('/job', async (req: Request, res: Response, next) => {
       throw new AppError(400, `Output format '${outputFormat}' is not supported.`);
     }
 
-    if (!ConversionService.fileExists(inputFileId)) {
-      throw new AppError(404, `Input file with ID '${inputFileId}' not found`);
-    }
-
-    const job = await ConversionService.createJob(userId, inputFileId, outputFormat);
+    const job = await ConversionService.createJob(
+      userId,
+      ObjectId.createFromHexString(inputFileId),
+      outputFormat,
+    );
 
     ConversionService.startConversion(job).catch((error) => {
       logger.error(

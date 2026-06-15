@@ -8,6 +8,7 @@ import { FileUploadResponse } from '@/types.js';
 import { AppError } from '@/errors.js';
 import path from 'path';
 import fs from 'fs';
+import { ObjectId } from 'mongodb';
 
 const router = Router();
 const MAX_FILE_SIZE = 1073741824;
@@ -48,7 +49,7 @@ router.post('/', (req: Request, res: Response) => {
     const userFile = await FileService.registerUpload({
       fileName: file.filename,
       mimeType: file.mimetype,
-      originalName: file.originalname,
+      originalFileName: file.originalname,
       size: file.size,
       userId: userId,
     });
@@ -71,7 +72,7 @@ router.post('/', (req: Request, res: Response) => {
     }
 
     const response: FileUploadResponse = {
-      id: userFile._id,
+      id: userFile._id.toString(),
       ...userFile,
     };
 
@@ -87,14 +88,36 @@ router.get('/:fileId', async (req: Request, res: Response, next: NextFunction) =
 
   const fileId = typeof req.params.fileId === 'string' ? req.params.fileId : req.params.fileId[0];
 
-  const userFile = await FileService.getUserFile(userId, fileId);
-  let filePath = path.join(OUTPUTS_DIR, fileId);
+  const userFile = await FileService.getUserFile(userId, ObjectId.createFromHexString(fileId));
 
-  if (!userFile || !fs.existsSync(filePath)) {
+  if (!userFile) {
+    throw new AppError(404, `File with ID '${fileId}' not found`);
+  }
+
+  let filePath = path.join(OUTPUTS_DIR, userFile.fileName);
+
+  if (!fs.existsSync(filePath)) {
     throw new AppError(404, `File with ID '${fileId}' not found`);
   }
 
   return res.download(filePath);
+});
+
+router.get('/:fileId/details', async (req, res) => {
+  const userId = req.loggedInUser?.googleId;
+  if (!userId) {
+    throw new AppError(401, 'User not authenticated');
+  }
+
+  const fileId = typeof req.params.fileId === 'string' ? req.params.fileId : req.params.fileId[0];
+
+  const userFile = await FileService.getUserFile(userId, ObjectId.createFromHexString(fileId));
+
+  if (!userFile) {
+    throw new AppError(404, `File details with ID '${fileId}' not found`);
+  }
+
+  return res.json({ id: userFile._id, ...userFile });
 });
 
 export default router;

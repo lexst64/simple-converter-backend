@@ -15,13 +15,16 @@ export interface UserPayload {
 }
 
 export interface UserFile {
-  _id: string;
+  _id: ObjectId;
   userId: string;
+
+  fileName: string;
+  originalFileName?: string;
   type: 'upload' | 'output';
-  originalName?: string;
-  mimeType?: string;
   size: number;
   createdAt: Date;
+  mimeType?: string;
+  deletedAt?: Date;
 }
 
 export enum JobStatus {
@@ -35,15 +38,19 @@ export enum JobStatus {
 export interface Job {
   _id: ObjectId;
   userId: string;
-  inputFileId: string;
+
+  inputFileId: ObjectId;
+  outputFileId?: ObjectId;
+
+  inputFormat: string;
   outputFormat: string;
+
   progress: number;
   status: JobStatus;
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
   errorMessage?: string;
-  outputFileId?: string;
 }
 
 export interface JobRequest {

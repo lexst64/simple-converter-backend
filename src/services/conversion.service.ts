@@ -2,12 +2,13 @@ import { spawn } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { Job, JobStatus } from '@/types.js';
+import { Job, JobStatus, UserFile } from '@/types.js';
 import { db, logger } from '@/index.js';
 import { FileService, OUTPUTS_DIR, UPLOADS_DIR } from '@/services/file.service.js';
 import { EventEmitter } from 'events';
 import { ObjectId } from 'mongodb';
 import { AppError } from '@/errors.js';
+import { getFilenameExt } from '@/utils.js';
 
 export const SUPPORTED_FORMATS = [
   'jpeg',
@@ -74,27 +75,28 @@ export class ConversionService {
   }
 
   /**
-   * Validates if input file exists
-   */
-  static async fileExists(fileId: string): Promise<boolean> {
-    const filePath = path.join(UPLOADS_DIR, fileId);
-    try {
-      await fs.access(filePath);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
    * Creates a new conversion job
    */
-  static async createJob(userId: string, inputFileId: string, outputFormat: string): Promise<Job> {
+  static async createJob(
+    userId: string,
+    inputFileId: ObjectId,
+    outputFormat: string,
+  ): Promise<Job> {
+    const files = db.collection<UserFile>('files');
+    const inputFile = await files.findOne({ _id: inputFileId });
+
+    if (!inputFile || inputFile.deletedAt) {
+      throw new AppError(400, `Input file with ID ${inputFileId.toString()} does not exist`);
+    }
+
+    const inputFormat = getFilenameExt(inputFile.fileName);
+
     const jobs = db.collection<Job>('jobs');
     const res = await jobs.insertOne({
       _id: new ObjectId(),
       userId,
       inputFileId,
+      inputFormat,
       outputFormat: outputFormat.toLowerCase(),
       status: JobStatus.PENDING,
       progress: 0,
@@ -134,9 +136,21 @@ export class ConversionService {
    * Starts the conversion process
    */
   static async startConversion(job: Job): Promise<void> {
-    const inputPath = path.join(UPLOADS_DIR, job.inputFileId);
-    const outputFileId = `${randomUUID()}.${job.outputFormat}`;
-    const outputPath = path.join(OUTPUTS_DIR, outputFileId);
+    const inputFile = await db.collection<UserFile>('files').findOne({ _id: job.inputFileId });
+
+    if (!inputFile) {
+      logger.error(
+        { jobId: job._id.toString() },
+        'Starting conversion failed. Failed obtaining input file from the database.',
+      );
+      throw new Error('Starting conversion failed. Failed obtaining input file from the database.');
+    }
+
+    const inputPath = path.join(UPLOADS_DIR, inputFile.fileName);
+    const outputFileName = `${randomUUID()}.${job.outputFormat}`;
+    const outputPath = path.join(OUTPUTS_DIR, outputFileName);
+
+    const originalOutputFileName = `${path.parse(inputFile.originalFileName || inputFile.fileName).name}.${job.outputFormat}`;
 
     job = await this.updateJob(job, { status: JobStatus.PROCESSING });
 
@@ -211,22 +225,25 @@ export class ConversionService {
       ffmpeg.on('close', async (code) => {
         if (code === 0) {
           // Conversion successful
-          await this.updateJob(job, {
-            status: JobStatus.COMPLETED,
-            outputFileId,
-            completedAt: new Date(),
-            progress: 100,
-          });
           const outputFileSize = (await fs.stat(outputPath)).size;
-
-          await FileService.registerOutput({
-            fileName: outputFileId,
+          const outputFile = await FileService.registerOutput({
+            fileName: outputFileName,
+            originalFileName: originalOutputFileName,
             size: outputFileSize,
             userId: job.userId,
           });
 
+          await this.updateJob(job, {
+            status: JobStatus.COMPLETED,
+            outputFileId: outputFile?._id,
+            completedAt: new Date(),
+            progress: 100,
+          });
+
+          await FileService.removeUpload(inputFile.fileName);
+
           logger.info(
-            { jobId: job._id.toString(), outputFileId },
+            { jobId: job._id.toString(), outputFileId: outputFile?._id },
             'Conversion completed successfully',
           );
 
@@ -240,7 +257,7 @@ export class ConversionService {
           });
 
           // Clean up the output file if it was created
-          FileService.removeOutput(outputFileId);
+          FileService.removeOutput(outputFileName);
 
           logger.error(
             { jobId: job._id.toString(), code, stderr: errorOutput },
@@ -258,7 +275,7 @@ export class ConversionService {
         });
 
         // Clean up the output file if it was created
-        await FileService.removeOutput(outputFileId);
+        await FileService.removeOutput(outputFileName);
 
         logger.error({ jobId: job._id.toString(), error: error.message }, 'FFmpeg process error');
 
