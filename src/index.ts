@@ -10,6 +10,7 @@ import { requireFfmpeg } from '@/utils.js';
 import { logger } from '@/logger.js';
 import { connectToDatabase, closeDatabaseConnection } from '@/db.js';
 import { PORT, FRONTEND_URL } from '@/config.js';
+import { setupWebSocketServer } from './websocket.js';
 
 requireFfmpeg();
 
@@ -59,7 +60,8 @@ process.on('unhandledRejection', (err) => {
 
 try {
   await connectToDatabase();
-  app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
+  const server = app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
+  setupWebSocketServer(server);
 } catch (error) {
   logger.error({ error }, 'Failed to start application');
   process.exit(1);

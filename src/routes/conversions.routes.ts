@@ -7,6 +7,7 @@ import z from 'zod';
 import { ObjectId } from 'mongodb';
 import { Job, JobStatus } from '@/types.js';
 import { FileService } from '@/services/file.service.js';
+import { WebSocket } from 'ws';
 
 const router = Router();
 
@@ -138,37 +139,36 @@ router.delete('/job/:id', async (req: Request, res: Response, next) => {
 });
 
 /**
- * GET /api/v1/conversions/job/:id/status
- * Gets the status of a specific conversion job as a real-time stream (SSE)
+ * Handles WebSocket connection for monitoring conversion job status
  */
-router.get('/job/:id/status', async (req: Request, res: Response, next) => {
+export async function handleJobStatusWebSocket(ws: WebSocket, req: Request, id: string) {
   const userId = req.loggedInUser?.googleId;
   if (!userId) {
-    throw new AppError(401, 'User not authenticated');
+    ws.close(4001, 'User not authenticated');
+    return;
   }
 
-  const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
   if (!ObjectId.isValid(id)) {
-    throw new AppError(400, 'Invalid ID format');
+    ws.close(4000, 'Invalid ID format');
+    return;
   }
 
   const job = await ConversionService.getJob(new ObjectId(id));
 
   if (!job) {
-    throw new AppError(404, `Conversion job with ID '${id}' not found`);
+    ws.close(4004, `Conversion job with ID '${id}' not found`);
+    return;
   }
 
   if (job.userId !== userId) {
-    throw new AppError(403, 'Forbidden: This job does not belong to you');
+    ws.close(4003, 'Forbidden: This job does not belong to you');
+    return;
   }
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
   const sendUpdate = (data: object) => {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    if (ws.readyState === ws.OPEN) {
+      ws.send(JSON.stringify(data));
+    }
   };
 
   sendUpdate({ status: job.status, progress: job.progress });
@@ -179,10 +179,9 @@ router.get('/job/:id/status', async (req: Request, res: Response, next) => {
 
   ConversionService.onJobUpdate(id, listener);
 
-  req.on('close', () => {
+  ws.on('close', () => {
     ConversionService.offJobUpdate(id, listener);
-    res.end();
   });
-});
+}
 
 export default router;

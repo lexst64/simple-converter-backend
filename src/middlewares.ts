@@ -8,7 +8,7 @@ import pino from 'pino';
 import { pinoHttp } from 'pino-http';
 import { z } from 'zod';
 
-const UserPayloadSchema = z.object({
+export const UserPayloadSchema = z.object({
   email: z.email(),
   googleId: z.string(),
   name: z.string(),
