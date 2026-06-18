@@ -20,6 +20,10 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage, limits: { fileSize: MAX_FILE_SIZE } });
 
+/**
+ * POST /api/v1/files
+ * Uploads a media file and registers it in the system
+ */
 router.post('/', (req: Request, res: Response) => {
   // TODO: multer writes the file to the disk until it realizes that it is over MAX_FILE_SIZE
   // after which it deletes the file. Need to look at "content-length" header.
@@ -80,6 +84,10 @@ router.post('/', (req: Request, res: Response) => {
   });
 });
 
+/**
+ * GET /api/v1/files/:fileId
+ * Downloads a converted file by its ID
+ */
 router.get('/:fileId', async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.loggedInUser?.googleId;
   if (!userId) {
@@ -103,6 +111,10 @@ router.get('/:fileId', async (req: Request, res: Response, next: NextFunction) =
   return res.download(filePath);
 });
 
+/**
+ * GET /api/v1/files/:fileId/details
+ * Retrieves the metadata/details of a registered file
+ */
 router.get('/:fileId/details', async (req, res) => {
   const userId = req.loggedInUser?.googleId;
   if (!userId) {

@@ -6,7 +6,14 @@ import { ObjectId } from 'mongodb';
 
 const storageRoot = process.env.NODE_ENV === 'prod' ? '/var/tmp' : process.cwd();
 
+/**
+ * Path to the directory where uploaded source files are stored
+ */
 export const UPLOADS_DIR = path.join(storageRoot, '_uploads');
+
+/**
+ * Path to the directory where converted output files are stored
+ */
 export const OUTPUTS_DIR = path.join(storageRoot, '_outputs');
 
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -17,6 +24,9 @@ if (!fs.existsSync(OUTPUTS_DIR)) {
   fs.mkdirSync(OUTPUTS_DIR, { recursive: true });
 }
 
+/**
+ * Metadata info for registering a file
+ */
 interface FileInfo {
   fileName: string;
   userId: string;
@@ -25,7 +35,13 @@ interface FileInfo {
   size: number;
 }
 
+/**
+ * Service to manage uploading, registering, and deleting files
+ */
 export class FileService {
+  /**
+   * Registers a user upload in the files collection
+   */
   static async registerUpload(fileInfo: FileInfo): Promise<UserFile | undefined> {
     const files = db.collection<UserFile>('files');
     const result = await files.insertOne({
@@ -43,6 +59,9 @@ export class FileService {
     return userFile;
   }
 
+  /**
+   * Registers a conversion output in the files collection
+   */
   static async registerOutput(fileInfo: FileInfo): Promise<UserFile | undefined> {
     const files = db.collection<UserFile>('files');
     const result = await files.insertOne({
@@ -59,6 +78,9 @@ export class FileService {
     return userFile;
   }
 
+  /**
+   * Deletes a file from both the database and the specified directory
+   */
   private static async removeFile(param: string | ObjectId, directory: string): Promise<void> {
     const files = db.collection<UserFile>('files');
     let file: UserFile | null = null;
@@ -102,18 +124,27 @@ export class FileService {
     }
   }
 
+  /**
+   * Deletes an upload file by its filename or database ID
+   */
   static async removeUpload(fileName: string): Promise<void>;
   static async removeUpload(fileId: ObjectId): Promise<void>;
   static async removeUpload(param: string | ObjectId): Promise<void> {
     return this.removeFile(param, UPLOADS_DIR);
   }
 
+  /**
+   * Deletes an output file by its filename or database ID
+   */
   static async removeOutput(fileName: string): Promise<void>;
   static async removeOutput(fileId: ObjectId): Promise<void>;
   static async removeOutput(param: string | ObjectId): Promise<void> {
     return this.removeFile(param, OUTPUTS_DIR);
   }
 
+  /**
+   * Retrieves a file by its ID, validating ownership by the user ID
+   */
   static async getUserFile(userId: string, fileId: ObjectId): Promise<UserFile | undefined> {
     const files = db.collection<UserFile>('files');
     const userFile = await files.findOne({ _id: fileId, userId });

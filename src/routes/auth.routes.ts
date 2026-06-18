@@ -18,6 +18,10 @@ const TicketPayloadSchema = z.object({
   picture: z.url().optional(),
 });
 
+/**
+ * POST /api/v1/auth/google
+ * Authenticates a user via Google OAuth2 ID token
+ */
 router.post('/google', async (req, res) => {
   const { token } = req.body || {};
 
@@ -80,6 +84,10 @@ router.post('/google', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/v1/auth/me
+ * Retrieves the profile of the currently authenticated user
+ */
 router.get('/me', async (req, res) => {
   res.json({
     googleId: req.loggedInUser?.googleId,

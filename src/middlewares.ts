@@ -26,6 +26,10 @@ declare global {
   }
 }
 
+/**
+ * Middleware that authenticates requests using JWT app tokens.
+ * Allows specifying paths that should bypass authentication checks.
+ */
 export const jwtAuth = (exceptFor?: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const requestPath = req.originalUrl.split('?')[0];
@@ -65,6 +69,9 @@ export const jwtAuth = (exceptFor?: string[]) => {
   };
 };
 
+/**
+ * Middleware that parses and validates offset and limit query parameters for pagination.
+ */
 export const pagination = (defaultLimit: number, maxLimit: number) => {
   return (req: Request, _res: Response, next: NextFunction) => {
     let { limit, offset } = req.query;
@@ -83,6 +90,10 @@ export const pagination = (defaultLimit: number, maxLimit: number) => {
   };
 };
 
+/**
+ * Error-handling middleware that catches all errors, logging 5xx errors
+ * and sending structured JSON responses to the client.
+ */
 export const errorHandler = () => {
   return (err: Error, req: Request, res: Response, _next: NextFunction) => {
     const errorStatus = err.status || 500;
@@ -105,6 +116,9 @@ export const errorHandler = () => {
   };
 };
 
+/**
+ * HTTP request/response logging middleware using pino-http.
+ */
 export const httpLogger = (logger: pino.Logger) => {
   return pinoHttp({
     logger,
