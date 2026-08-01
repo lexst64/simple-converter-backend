@@ -1,0 +1,8 @@
+node_modules
+dist
+_outputs
+_uploads
+.git
+.env
+.vscode
+logs

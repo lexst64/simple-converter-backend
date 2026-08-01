@@ -1,0 +1,19 @@
+services:
+  backend:
+    build: .
+    image: simple-converter-backend:latest
+    container_name: simple-converter-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=prod
+    volumes:
+      - uploads_data:/app/_uploads
+      - outputs_data:/app/_outputs
+
+volumes:
+  uploads_data:
+  outputs_data:
