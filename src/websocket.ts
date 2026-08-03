@@ -15,8 +15,8 @@ export const setupWebSocketServer = (httpServer: Server) => {
     handleProtocols: (protocols) => (protocols.has('Bearer') ? 'Bearer' : false),
   });
 
-  (wss as any).on('connection', (ws: any, req: any, id: string, loggedInUser: UserPayload) => {
-    (req as any).loggedInUser = loggedInUser;
+  (wss as any).on('connection', (ws: any, req: any, id: string, user: UserPayload) => {
+    (req as any).user = user;
     handleJobStatusWebSocket(ws, req, id).catch((error) => {
       logger.error({ error, jobId: id }, 'WebSocket status handler error');
     });
@@ -57,7 +57,7 @@ export const setupWebSocketServer = (httpServer: Server) => {
           return;
         }
 
-        const loggedInUser: UserPayload = {
+        const user: UserPayload = {
           email: validation.data.email,
           googleId: validation.data.googleId,
           name: validation.data.name,
@@ -65,7 +65,7 @@ export const setupWebSocketServer = (httpServer: Server) => {
         };
 
         wss.handleUpgrade(request, socket, head, (ws) => {
-          wss.emit('connection', ws, request, id, loggedInUser);
+          wss.emit('connection', ws, request, id, user);
         });
       } catch (error) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
