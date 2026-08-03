@@ -90,10 +90,10 @@ router.post('/google', async (req, res) => {
  */
 router.get('/me', async (req, res) => {
   res.json({
-    googleId: req.loggedInUser?.googleId,
-    email: req.loggedInUser?.email,
-    name: req.loggedInUser?.name,
-    picture: req.loggedInUser?.picture,
+    googleId: req.user?.googleId,
+    email: req.user?.email,
+    name: req.user?.name,
+    picture: req.user?.picture,
   });
 });
 

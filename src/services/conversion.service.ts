@@ -10,6 +10,7 @@ import { EventEmitter } from 'events';
 import { ObjectId } from 'mongodb';
 import { AppError } from '@/errors.js';
 import { getFilenameExt } from '@/utils.js';
+import { S3Service } from './s3.service.js';
 
 export const SUPPORTED_FORMATS = [
   'jpeg',
@@ -55,15 +56,22 @@ export class ConversionService {
    * Updates a job and emits an event.
    */
   static async updateJob(job: Job, updates: Partial<Job>): Promise<Job> {
-    const updatedJob = { ...job, ...updates, updatedAt: new Date() };
-
     const jobs = db.collection<Job>('jobs');
-    const res = await jobs.findOneAndReplace({ _id: job._id }, updatedJob, {
-      includeResultMetadata: true,
-    });
-    if (!res.ok) {
+    const res = await jobs.findOneAndUpdate(
+      { _id: job._id },
+      { $set: { ...updates, updatedAt: new Date() } },
+      { returnDocument: 'after', includeResultMetadata: false },
+    );
+
+    // Handle different MongoDB driver responses
+    const updatedJob = (
+      res && typeof res === 'object' && 'value' in res ? res.value : res
+    ) as Job | null;
+
+    if (!updatedJob) {
       throw new AppError(500, 'Failed to update job state');
     }
+
     jobEvents.emit(job._id.toString(), updatedJob);
     return updatedJob;
   }
@@ -156,7 +164,11 @@ export class ConversionService {
       throw new Error('Starting conversion failed. Failed obtaining input file from the database.');
     }
 
+    const id = inputFile._id.toString();
+
     const inputPath = path.join(UPLOADS_DIR, inputFile.fileName);
+    await S3Service.downloadFile(id, inputPath);
+
     const outputFileName = `${randomUUID()}.${job.outputFormat}`;
     const outputPath = path.join(OUTPUTS_DIR, outputFileName);
 
@@ -196,6 +208,13 @@ export class ConversionService {
         inputPath,
       ]);
 
+      ffprobe.on('error', (err) => {
+        logger.warn(
+          { jobId: job._id.toHexString(), err },
+          'Could not spawn ffprobe to determine duration',
+        );
+      });
+
       ffprobe.stdout.on('data', (data) => {
         duration = parseFloat(data.toString());
       });
@@ -233,63 +252,88 @@ export class ConversionService {
       });
 
       ffmpeg.on('close', async (code) => {
-        if (code === 0) {
-          // Conversion successful
-          const outputFileSize = (await fs.stat(outputPath)).size;
-          const outputFile = await FileService.registerOutput({
-            fileName: outputFileName,
-            originalFileName: originalOutputFileName,
-            size: outputFileSize,
-            userId: job.userId,
-          });
+        try {
+          if (code === 0) {
+            // Conversion successful
+            const outputFileSize = (await fs.stat(outputPath)).size;
+            const outputFile = await FileService.registerOutput({
+              fileName: outputFileName,
+              originalFileName: originalOutputFileName,
+              size: outputFileSize,
+              userId: job.userId,
+            });
 
+            if (outputFile) {
+              await S3Service.uploadFile(outputFile._id.toString(), outputPath);
+            }
+
+            await this.updateJob(job, {
+              status: JobStatus.COMPLETED,
+              outputFileId: outputFile?._id,
+              completedAt: new Date(),
+              progress: 100,
+            });
+
+            await FileService.removeUpload(inputFile.fileName);
+            await fs.unlink(outputPath).catch(() => {});
+            await S3Service.removeFile(inputFile._id.toString());
+
+            logger.info(
+              { jobId: job._id.toString(), outputFileId: outputFile?._id },
+              'Conversion completed successfully',
+            );
+
+            resolve();
+          } else {
+            // Conversion failed
+            const errorMessage = `FFmpeg process exited with code ${code}`;
+            await this.updateJob(job, {
+              status: JobStatus.FAILED,
+              errorMessage,
+            });
+
+            // Clean up the output file if it was created
+            await FileService.removeOutput(outputFileName);
+            await fs.unlink(inputPath).catch(() => {});
+
+            logger.error(
+              { jobId: job._id.toString(), code, stderr: errorOutput },
+              'Conversion failed',
+            );
+
+            reject(new Error(`Conversion failed with code ${code}`));
+          }
+        } catch (err) {
+          logger.error({ err, jobId: job._id.toString() }, 'Error during conversion cleanup');
           await this.updateJob(job, {
-            status: JobStatus.COMPLETED,
-            outputFileId: outputFile?._id,
-            completedAt: new Date(),
-            progress: 100,
-          });
-
-          await FileService.removeUpload(inputFile.fileName);
-
-          logger.info(
-            { jobId: job._id.toString(), outputFileId: outputFile?._id },
-            'Conversion completed successfully',
-          );
-
-          resolve();
-        } else {
-          // Conversion failed
-          const errorMessage = `FFmpeg process exited with code ${code}`;
-          this.updateJob(job, {
             status: JobStatus.FAILED,
-            errorMessage,
-          });
+            errorMessage: err instanceof Error ? err.message : 'Unknown error during cleanup',
+          }).catch(() => {});
 
-          // Clean up the output file if it was created
-          FileService.removeOutput(outputFileName);
-
-          logger.error(
-            { jobId: job._id.toString(), code, stderr: errorOutput },
-            'Conversion failed',
-          );
-
-          reject(new Error(`Conversion failed with code ${code}`));
+          await fs.unlink(outputPath).catch(() => {});
+          reject(err);
         }
       });
 
       ffmpeg.on('error', async (error) => {
-        this.updateJob(job, {
-          status: JobStatus.FAILED,
-          errorMessage: error.message,
-        });
+        try {
+          await this.updateJob(job, {
+            status: JobStatus.FAILED,
+            errorMessage: error.message,
+          });
 
-        // Clean up the output file if it was created
-        await FileService.removeOutput(outputFileName);
-
-        logger.error({ jobId: job._id.toString(), error: error.message }, 'FFmpeg process error');
-
-        reject(error);
+          // Clean up the output file if it was created
+          await FileService.removeOutput(outputFileName);
+          await fs.unlink(inputPath).catch(() => {});
+        } catch (cleanupError) {
+          logger.error(
+            { err: cleanupError, jobId: job._id.toString() },
+            'Error during ffmpeg error cleanup',
+          );
+        } finally {
+          logger.error({ jobId: job._id.toString(), error: error.message }, 'FFmpeg process error');
+          reject(error);
+        }
       });
     });
   }

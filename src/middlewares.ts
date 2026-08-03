@@ -18,7 +18,7 @@ export const UserPayloadSchema = z.object({
 declare global {
   namespace Express {
     interface Request {
-      loggedInUser?: UserPayload;
+      user?: UserPayload;
     }
   }
   interface Error {
@@ -58,7 +58,7 @@ export const jwtAuth = (exceptFor?: string[]) => {
       throw new AppError(401, 'Incorret authentication token');
     }
 
-    req.loggedInUser = {
+    req.user = {
       email: validation.data.email,
       googleId: validation.data.googleId,
       name: validation.data.name,

@@ -8,6 +8,7 @@ import { ObjectId } from 'mongodb';
 import { Job, JobStatus } from '@/types.js';
 import { FileService } from '@/services/file.service.js';
 import { WebSocket } from 'ws';
+import { S3Service } from '@/services/s3.service.js';
 
 const router = Router();
 
@@ -21,7 +22,7 @@ const ConversionJobRequestSchema = z.object({
  * Creates a new conversion job
  */
 router.post('/job', async (req, res) => {
-  const userId = req.loggedInUser?.googleId;
+  const userId = req.user?.googleId;
   if (!userId) {
     throw new AppError(401, 'User not authenticated');
   }
@@ -58,7 +59,7 @@ router.post('/job', async (req, res) => {
  * Gets list of conversion jobs for the authenticated user
  */
 router.get('/job', pagination(1, 50), async (req, res) => {
-  const userId = req.loggedInUser?.googleId || '';
+  const userId = req.user?.googleId || '';
 
   const { limit, offset } = req.query;
   const parsedLimit = Number(limit) || 1;
@@ -90,7 +91,7 @@ router.get('/job/:id', async (req, res) => {
     throw new AppError(404, `Conversion job with ID '${id}' not found`);
   }
 
-  if (job.userId !== req.loggedInUser?.googleId) {
+  if (job.userId !== req.user?.googleId) {
     throw new AppError(403, 'Forbidden: This job does not belong to you');
   }
 
@@ -102,7 +103,7 @@ router.get('/job/:id', async (req, res) => {
  * Deletes a specified job unless it is pending or in progress
  */
 router.delete('/job/:id', async (req: Request, res: Response, next) => {
-  const userId = req.loggedInUser?.googleId;
+  const userId = req.user?.googleId;
   if (!userId) {
     throw new AppError(401, 'User not authenticated');
   }
@@ -128,9 +129,11 @@ router.delete('/job/:id', async (req: Request, res: Response, next) => {
 
   if (job.inputFileId) {
     await FileService.removeUpload(job.inputFileId);
+    await S3Service.removeFile(job.inputFileId.toString());
   }
   if (job.outputFileId) {
     await FileService.removeOutput(job.outputFileId);
+    await S3Service.removeFile(job.outputFileId.toString());
   }
 
   await ConversionService.deleteJob(job._id);
@@ -142,7 +145,7 @@ router.delete('/job/:id', async (req: Request, res: Response, next) => {
  * Handles WebSocket connection for monitoring conversion job status
  */
 export async function handleJobStatusWebSocket(ws: WebSocket, req: Request, id: string) {
-  const userId = req.loggedInUser?.googleId;
+  const userId = req.user?.googleId;
   if (!userId) {
     ws.close(4001, 'User not authenticated');
     return;
