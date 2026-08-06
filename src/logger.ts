@@ -21,11 +21,8 @@ export const logger =
           },
         },
       })
-    : pino(
-        {
-          level: 'info',
-          base: undefined,
-          timestamp: pino.stdTimeFunctions.isoTime,
-        },
-        pino.destination({ dest: logFilePath, sync: false }),
-      );
+    : pino({
+        level: 'info',
+        base: undefined,
+        timestamp: pino.stdTimeFunctions.isoTime,
+      });

@@ -6,8 +6,8 @@ import { Job, JobStatus, UserFile } from '@/types.js';
 import { db } from '@/db.js';
 import { logger } from '@/logger.js';
 import { FileService, OUTPUTS_DIR, UPLOADS_DIR } from '@/services/file.service.js';
-import { EventEmitter } from 'events';
-import { ObjectId } from 'mongodb';
+
+import { ChangeStream, ObjectId } from 'mongodb';
 import { AppError } from '@/errors.js';
 import { getFilenameExt } from '@/utils.js';
 import { S3Service } from './s3.service.js';
@@ -35,25 +35,51 @@ export const SUPPORTED_FORMATS = [
   'ogg',
 ];
 
-const jobEvents = new EventEmitter();
-
 export class ConversionService {
   /**
-   * Adds a listener for job status changes.
+   * Subscribes to updates for a specific job via a MongoDB Change Stream.
+   * Returns the ChangeStream handle so it can be closed later with `offJobUpdate`.
    */
-  static onJobUpdate(jobId: string, listener: (job: Job) => void) {
-    jobEvents.on(jobId, listener);
+  static onJobUpdate(
+    jobId: ObjectId,
+    listener: (job: Job) => void,
+    onError?: (err: Error) => void,
+  ): ChangeStream {
+    const pipeline = [
+      {
+        $match: {
+          'documentKey._id': jobId,
+          operationType: 'update',
+        },
+      },
+    ];
+
+    const changeStream = db.collection<Job>('jobs').watch(pipeline, {
+      fullDocument: 'updateLookup',
+    });
+
+    changeStream.on('change', (change) => {
+      if (change.operationType === 'update' && change.fullDocument) {
+        listener(change.fullDocument);
+      }
+    });
+
+    if (onError) {
+      changeStream.on('error', onError);
+    }
+
+    return changeStream;
   }
 
   /**
-   * Removes a listener for job status changes.
+   * Closes a change stream previously opened by `onJobUpdate`.
    */
-  static offJobUpdate(jobId: string, listener: (job: Job) => void) {
-    jobEvents.off(jobId, listener);
+  static offJobUpdate(changeStream: ChangeStream): void {
+    changeStream.close().catch(() => {});
   }
 
   /**
-   * Updates a job and emits an event.
+   * Updates a job.
    */
   static async updateJob(job: Job, updates: Partial<Job>): Promise<Job> {
     const jobs = db.collection<Job>('jobs');
@@ -72,7 +98,6 @@ export class ConversionService {
       throw new AppError(500, 'Failed to update job state');
     }
 
-    jobEvents.emit(job._id.toString(), updatedJob);
     return updatedJob;
   }
 

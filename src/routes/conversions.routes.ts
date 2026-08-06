@@ -5,7 +5,7 @@ import { AppError } from '@/errors.js';
 import { logger } from '@/logger.js';
 import z from 'zod';
 import { ObjectId } from 'mongodb';
-import { Job, JobStatus } from '@/types.js';
+import { JobStatus } from '@/types.js';
 import { FileService } from '@/services/file.service.js';
 import { WebSocket } from 'ws';
 import { S3Service } from '@/services/s3.service.js';
@@ -156,7 +156,8 @@ export async function handleJobStatusWebSocket(ws: WebSocket, req: Request, id: 
     return;
   }
 
-  const job = await ConversionService.getJob(new ObjectId(id));
+  const jobId = new ObjectId(id);
+  const job = await ConversionService.getJob(jobId);
 
   if (!job) {
     ws.close(4004, `Conversion job with ID '${id}' not found`);
@@ -174,16 +175,40 @@ export async function handleJobStatusWebSocket(ws: WebSocket, req: Request, id: 
     }
   };
 
+  // send the current state immediately
   sendUpdate({ status: job.status, progress: job.progress });
 
-  const listener = (updatedJob: Job) => {
-    sendUpdate({ status: updatedJob.status, progress: updatedJob.progress });
-  };
+  // if the job is already in a terminal state, close right away
+  const terminalStatuses: JobStatus[] = [
+    JobStatus.COMPLETED,
+    JobStatus.FAILED,
+    JobStatus.CANCELLED,
+  ];
+  if (terminalStatuses.includes(job.status)) {
+    ws.close(1000, 'Job already in terminal state');
+    return;
+  }
 
-  ConversionService.onJobUpdate(id, listener);
+  const changeStream = ConversionService.onJobUpdate(
+    jobId,
+    (updatedJob) => {
+      const { status, progress } = updatedJob;
+      sendUpdate({ status, progress });
+
+      if (terminalStatuses.includes(status)) {
+        ConversionService.offJobUpdate(changeStream);
+        ws.close(1000, 'Job reached terminal state');
+      }
+    },
+    (err) => {
+      logger.error({ jobId: id, error: err }, 'Change stream error');
+      ConversionService.offJobUpdate(changeStream);
+      ws.close(1011, 'Internal error');
+    },
+  );
 
   ws.on('close', () => {
-    ConversionService.offJobUpdate(id, listener);
+    ConversionService.offJobUpdate(changeStream);
   });
 }
 
