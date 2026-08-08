@@ -14,6 +14,21 @@ services:
       - uploads_data:/app/_uploads
       - outputs_data:/app/_outputs
 
+  worker:
+    build: .
+    image: simple-converter-worker:latest
+    command: node dist/worker.js
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=prod
+    volumes:
+      - uploads_data:/app/_uploads
+      - outputs_data:/app/_outputs
+
 volumes:
   uploads_data:
   outputs_data:

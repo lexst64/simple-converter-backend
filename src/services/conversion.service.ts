@@ -176,9 +176,42 @@ export class ConversionService {
   }
 
   /**
+   * Atomically claims a job by changing its status to PROCESSING.
+   * Allows claiming jobs that are PENDING, FAILED (for retries), or PROCESSING.
+   * Returns the updated job if successfully claimed, or null if already completed or cancelled.
+   */
+  static async claimJob(jobId: ObjectId): Promise<Job | null> {
+    const jobs = db.collection<Job>('jobs');
+    const res = await jobs.findOneAndUpdate(
+      {
+        _id: jobId,
+        status: { $in: [JobStatus.PENDING, JobStatus.FAILED, JobStatus.PROCESSING] },
+      },
+      { $set: { status: JobStatus.PROCESSING, updatedAt: new Date() } },
+      { returnDocument: 'after', includeResultMetadata: false },
+    );
+
+    const updatedJob = (
+      res && typeof res === 'object' && 'value' in res ? res.value : res
+    ) as Job | null;
+
+    return updatedJob;
+  }
+
+  /**
    * Starts the conversion process
    */
   static async startConversion(job: Job): Promise<void> {
+    const claimedJob = await this.claimJob(job._id);
+    if (!claimedJob) {
+      logger.warn(
+        { jobId: job._id.toString() },
+        'Job already claimed or processed by another worker. Skipping execution.',
+      );
+      return;
+    }
+    job = claimedJob;
+
     const inputFile = await db.collection<UserFile>('files').findOne({ _id: job.inputFileId });
 
     if (!inputFile) {
@@ -198,8 +231,6 @@ export class ConversionService {
     const outputPath = path.join(OUTPUTS_DIR, outputFileName);
 
     const originalOutputFileName = `${path.parse(inputFile.originalFileName || inputFile.fileName).name}.${job.outputFormat}`;
-
-    job = await this.updateJob(job, { status: JobStatus.PROCESSING });
 
     logger.info(
       { jobId: job._id.toHexString(), inputPath, outputPath },

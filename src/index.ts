@@ -6,13 +6,10 @@ import systemRoutes from '@/routes/system.routes.js';
 import authRoutes from '@/routes/auth.routes.js';
 import filesRoutes from '@/routes/files.routes.js';
 import conversionsRoutes from '@/routes/conversions.routes.js';
-import { requireFfmpeg } from '@/utils.js';
 import { logger } from '@/logger.js';
 import { connectToDatabase, closeDatabaseConnection } from '@/db.js';
 import { PORT, FRONTEND_URL } from '@/config.js';
 import { setupWebSocketServer } from './websocket.js';
-
-requireFfmpeg();
 
 const app = express();
 

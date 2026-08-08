@@ -9,6 +9,7 @@ import { JobStatus } from '@/types.js';
 import { FileService } from '@/services/file.service.js';
 import { WebSocket } from 'ws';
 import { S3Service } from '@/services/s3.service.js';
+import { conversionQueue } from '@/queue.js';
 
 const router = Router();
 
@@ -44,12 +45,18 @@ router.post('/job', async (req, res) => {
     outputFormat,
   );
 
-  ConversionService.startConversion(job).catch((error) => {
-    logger.error(
-      { jobId: job._id.toString(), error: error.message },
-      'Background conversion failed',
-    );
-  });
+  await conversionQueue.add(
+    'convert',
+    { jobId: job._id.toString() },
+    {
+      jobId: job._id.toString(),
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 1000,
+      },
+    },
+  );
 
   return res.status(201).json(job);
 });
