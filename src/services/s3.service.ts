@@ -35,10 +35,11 @@ export class S3Service {
     return getSignedUrl(s3, command, { expiresIn });
   }
 
-  static async generateDownloadPresignedUrl(key: string, expiresIn = 180): Promise<string> {
+  static async generateDownloadPresignedUrl(key: string, newFileName: string, expiresIn = 180): Promise<string> {
     const command = new GetObjectCommand({
       Bucket: AWS_S3_BUCKET_NAME,
       Key: key,
+      ResponseContentDisposition: `attachment; filename="${newFileName}"`
     });
 
     return getSignedUrl(s3, command, { expiresIn });

@@ -7,6 +7,7 @@ import { AppError } from '@/errors.js';
 import { ObjectId } from 'mongodb';
 import { S3Service } from '@/services/s3.service.js';
 import z from 'zod';
+import path from 'path';
 
 const router = Router();
 const MAX_FILE_SIZE = 1073741824;
@@ -81,7 +82,8 @@ router.get('/:fileId', async (req: Request, res: Response) => {
     throw new AppError(404, `File with ID '${fileId}' not found`);
   }
 
-  const presignedGetUrl = await S3Service.generateDownloadPresignedUrl(fileId);
+  const newFileName = `${path.parse(userFile.originalFileName || 'file').name}${path.extname(userFile.fileName)}`;
+  const presignedGetUrl = await S3Service.generateDownloadPresignedUrl(fileId, newFileName);
   return res.status(200).json({ url: presignedGetUrl });
 });
 
