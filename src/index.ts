@@ -10,6 +10,8 @@ import { logger } from '@/logger.js';
 import { connectToDatabase, closeDatabaseConnection } from '@/db.js';
 import { PORT, FRONTEND_URL } from '@/config.js';
 import { setupWebSocketServer } from './websocket.js';
+import { startWorker } from '@/worker.js';
+import type { Worker } from 'bullmq';
 
 const app = express();
 
@@ -31,13 +33,18 @@ app.use('/api/v1', apiV1Router);
 
 app.use(errorHandler());
 
+let workerInstance: Worker | null = null;
+
 const gracefulShutdown = async (signal: string) => {
   logger.info(`Received ${signal}. Shutting down gracefully...`);
   try {
+    if (workerInstance) {
+      await workerInstance.close();
+    }
     await closeDatabaseConnection();
     process.exit(0);
   } catch (error) {
-    logger.error({ error }, 'Error during database disconnection');
+    logger.error({ error }, 'Error during graceful shutdown');
     process.exit(1);
   }
 };
@@ -59,6 +66,11 @@ try {
   await connectToDatabase();
   const server = app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
   setupWebSocketServer(server);
+
+  // If running in unified single-service mode (e.g. Render Free Tier)
+  if (process.env.RUN_WORKER !== 'false') {
+    workerInstance = await startWorker();
+  }
 } catch (error) {
   logger.error({ error }, 'Failed to start application');
   process.exit(1);
