@@ -31,7 +31,7 @@ export const startWorker = async (): Promise<Worker> => {
       concurrency: Number(process.env.WORKER_CONCURRENCY) || 1,
       lockDuration: 300000, // 5 minutes lock duration for long-running FFmpeg jobs
       maxStalledCount: 1,
-      prefix: '{conversions}',
+      // prefix: '{conversions}',
     },
   );
 

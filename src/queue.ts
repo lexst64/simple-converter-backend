@@ -18,6 +18,8 @@ const redisOptions: RedisOptions = {
   ...(isTls ? { tls: { servername: connectionUrl.hostname } } : {}),
 };
 
+export const redisConnection = redisOptions;
+
 export const conversionQueue = new Queue('conversions', {
   connection: redisOptions,
 });
