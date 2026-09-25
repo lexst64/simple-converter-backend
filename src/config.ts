@@ -14,4 +14,3 @@ export const AWS_S3_BUCKET_NAME = requireEnv('AWS_S3_BUCKET_NAME');
 export const AWS_REGION = requireEnv('AWS_REGION');
 export const REDIS_URL = requireEnv('REDIS_URL');
 export const REDIS_CLUSTER_ENABLED = requireEnv('REDIS_CLUSTER_ENABLED') === 'true';
-

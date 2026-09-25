@@ -17,7 +17,7 @@ export async function connectToDatabase(): Promise<Db> {
   });
 
   await client.connect();
-  db = client.db(NODE_ENV === 'prod' ? 'main' : 'dev');
+  db = client.db(['prod', 'production'].includes(NODE_ENV) ? 'main' : 'dev');
   logger.info(`Successfully connected to "${db.databaseName}"`);
   return db;
 }

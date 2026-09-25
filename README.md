@@ -1,6 +1,6 @@
 # Simple Media Converter Backend
 
-A robust, high-performance Express & TypeScript backend service for converting media files (video, audio, and images) using FFmpeg, MongoDB, and Server-Sent Events (SSE) for real-time progress tracking.
+A robust, high-performance Express & TypeScript backend service for converting media files (video, audio, and images) using FFmpeg, BullMQ, Redis, AWS S3, MongoDB, and WebSockets for real-time progress tracking.
 
 ---
 
@@ -10,18 +10,21 @@ A robust, high-performance Express & TypeScript backend service for converting m
 3. [Installation & Setup](#installation--setup)
 4. [Environment Variables](#environment-variables)
 5. [Running the Application](#running-the-application)
-6. [Linter & Code Quality](#linter--code-quality)
+6. [Deployment to Render Cloud](#deployment-to-render-cloud)
+7. [Docker & Local Containers](#docker--local-containers)
+8. [Linter & Code Quality](#linter--code-quality)
 
 ---
 
 ## Key Features
 
 - **Google OAuth Integration**: Secure authentication with Google Sign-In and JWT-based session authorization.
-- **Media Conversion Engine**: Seamless conversions for 20+ media formats (video, audio, image) using native FFmpeg child processes.
-- **Real-time Progress Updates**: Server-Sent Events (SSE) stream live conversion percentage and status transitions to the client.
-- **Efficient File Management**: Automatic cleanup of source files upon successful conversion or job failure, and custom limits (up to 1GB uploads).
-- **Structured Logging**: Production-ready logging using Pino and Pino-pretty for development.
-- **Graceful Shutdown**: Safe closing of MongoDB connections and clean process exits.
+- **Media Conversion Engine**: Conversions across 20+ media formats (video, audio, image) using FFmpeg child processes and BullMQ job processing.
+- **Background Worker Architecture**: Dedicated worker processes handling long-running transcoding tasks without blocking API requests.
+- **Real-time Progress Updates**: WebSocket streams live conversion progress percentages and status transitions to clients.
+- **AWS S3 Cloud Storage**: Secure presigned upload/download URLs and object persistence in Amazon S3.
+- **Structured Logging**: Production-ready JSON logging using Pino, and pretty-printed formatted output for local development.
+- **Graceful Shutdown**: Safe closing of MongoDB connections, Redis subscribers, and worker child processes.
 
 ---
 
@@ -29,9 +32,11 @@ A robust, high-performance Express & TypeScript backend service for converting m
 
 Ensure you have the following installed on your system:
 
-- **Node.js**: `v18.x` or higher (tested on `v25.x` and `v18.x`)
-- **MongoDB**: A local MongoDB database instance or a remote [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster.
-- **FFmpeg & FFprobe**: Must be installed and configured in your system `PATH` (used for transcoding and duration detection).
+- **Node.js**: `v18.x` or higher (tested on `v20.x` and `v22.x`)
+- **MongoDB**: A local MongoDB database instance or a remote [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster (with Replica Set / Change Streams support).
+- **Redis**: A Redis server (`v6.0+`) for BullMQ queue management.
+- **FFmpeg & FFprobe**: Must be installed and configured in your system `PATH`.
+- **AWS S3**: An S3 bucket and AWS IAM credentials with S3 read/write permissions.
 
 ---
 
@@ -45,84 +50,117 @@ Ensure you have the following installed on your system:
    ```
 
 2. **Configure Environment Variables**:
-   Copy the example environment file and fill in your values:
+   Copy the example environment file and fill in your credentials:
    ```bash
    cp .env.example .env
    ```
    *For details on each variable, see the [Environment Variables](#environment-variables) section below.*
 
 3. **Verify FFmpeg Installation**:
-   Ensure `ffmpeg` is available globally in your command line:
+   Ensure `ffmpeg` and `ffprobe` are available globally:
    ```bash
    ffmpeg -version
    ffprobe -version
    ```
 
-4. **Run the Server**:
-   Start the development server with hot-reloading:
+4. **Run the Development Servers**:
+   Start the API server:
    ```bash
    npm run dev
+   ```
+   In a separate terminal, start the background worker:
+   ```bash
+   npm run dev:worker
    ```
 
 ---
 
 ## Environment Variables
 
-The application reads configurations from `.env`. Below are the supported environment variables:
+The application reads configuration from environment variables or a `.env` file:
 
 | Variable | Description | Example / Default | Required |
 | :--- | :--- | :--- | :---: |
-| `PORT` | The port number on which the API server listens. | `3000` | Yes |
-| `FRONTEND_URL` | The URL of the frontend client (for CORS configuration). | `http://localhost:5173` | Yes |
-| `JWT_SECRET` | A secret string used to sign and verify JSON Web Tokens. | `your_secret_key_here` | Yes |
-| `NODE_ENV` | Application environment (`dev` or `prod`). Determines DB name and file storage roots. | `dev` | Yes |
-| `MONGODB_URI` | The connection string for your MongoDB instance. | `mongodb://localhost:27017/db` | Yes |
-| `GOOGLE_CLIENT_ID`| The OAuth 2.0 Client ID generated in Google Cloud Console. | `xxxx.apps.googleusercontent.com` | Yes |
+| `PORT` | Port number on which the API server listens. | `3000` (or `10000` on Render) | Yes |
+| `FRONTEND_URL` | URL of the frontend client (for CORS configuration). | `http://localhost:5173` | Yes |
+| `JWT_SECRET` | Secret key used to sign and verify JSON Web Tokens. | `your_secret_key_here` | Yes |
+| `NODE_ENV` | Environment (`dev`, `prod`, or `production`). | `dev` | Yes |
+| `MONGODB_URI` | MongoDB connection string (e.g. Atlas cluster). | `mongodb+srv://...` | Yes |
+| `AWS_ACCESS_KEY_ID` | AWS IAM Access Key ID. | `AKIA...` | Yes |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM Secret Access Key. | `your_secret_access_key` | Yes |
+| `AWS_S3_BUCKET_NAME` | Name of your AWS S3 bucket. | `simple-converter-bucket` | Yes |
+| `AWS_REGION` | AWS Region where the S3 bucket is hosted. | `eu-central-1` | Yes |
+| `REDIS_URL` | Redis connection URL for BullMQ. | `redis://localhost:6379` | Yes |
+| `REDIS_CLUSTER_ENABLED` | Set `true` if connecting to a Redis Cluster. | `false` | No |
+| `WORKER_CONCURRENCY` | Maximum concurrent conversion jobs per worker instance. | `1` (or `2` in production) | No |
 
-### File Storage Roots
-Depending on the `NODE_ENV` configuration, the directories where files are temporarily stored behave differently:
-- **`dev` environment**: Uploaded files (`_uploads/`) and converted files (`_outputs/`) are saved in the project's root folder (`process.cwd()`).
-- **`prod` environment**: Files are written to `/var/tmp/_uploads` and `/var/tmp/_outputs` for compatibility with server environments.
+---
 
-### Database Selection
-- If `NODE_ENV` is set to `prod`, the MongoDB database name used is `main`.
-- For any other environment (e.g., `dev`), the database name defaults to `dev`.
+## Deployment to Render Cloud
+
+The repository includes a ready-to-use Render Blueprint definition in [`render.yaml`](file:///render.yaml).
+
+### Automated Blueprint Deployment
+
+1. Push your repository to GitHub or GitLab.
+2. Log in to your [Render Dashboard](https://dashboard.render.com).
+3. Click **New +** and select **Blueprint**.
+4. Connect this repository and select the target branch.
+5. Render will detect [`render.yaml`](file:///render.yaml) and automatically create:
+   - **`simple-converter-redis`**: Managed Redis instance for BullMQ queue orchestration.
+   - **`simple-converter-api`**: Web Service running the Express + WebSocket server with Docker.
+   - **`simple-converter-worker`**: Background Worker running the FFmpeg conversion queue with Docker.
+6. When prompted in the Render Dashboard, supply the sensitive environment variables marked as `sync: false`:
+   - `MONGODB_URI`
+   - `FRONTEND_URL`
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+   - `AWS_S3_BUCKET_NAME`
+7. Render will build the Docker container and start both services.
+
+---
+
+## Docker & Local Containers
+
+You can run the complete backend stack locally using Docker:
+
+```bash
+# Build and run the API and worker containers
+docker compose up --build -d
+
+# View service logs
+docker compose logs -f
+```
 
 ---
 
 ## Running the Application
 
-In `package.json`, several npm scripts are defined to run and build the application:
-
 ```bash
-# 1. Run local development server (with tsx hot-reloading)
+# Run local API development server
 npm run dev
 
-# 2. Build TypeScript source files for production compilation
+# Run local worker development server
+npm run dev:worker
+
+# Compile TypeScript for production
 npm run build
 
-# 3. Run the compiled JavaScript production server
+# Start production API server
 npm start
-```
 
-### Compiling to JavaScript
-The compilation script utilizes `tsc` for TypeScript compilation and `tsc-alias` to resolve local path mappings (such as `@/` aliases defined in `tsconfig.json`) into valid production paths inside the `dist/` directory.
+# Start production worker
+npm run start:worker
+```
 
 ---
 
 ## Linter & Code Quality
 
-To keep the codebase clean, type-safe, and formatted consistently:
-
 ```bash
-# Analyze project structure and lint issues
+# Check code style and type rules
 npm run lint
 
-# Automatically resolve fixing lint rules where possible
+# Automatically resolve fixing lint rules
 npm run lint:fix
 ```
-
-Rules are configured in:
-- `eslint.config.js` for TypeScript static code analysis
-- `.prettierrc` for code formatting settings
-- `.editorconfig` for cross-editor configuration consistency

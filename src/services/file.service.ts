@@ -4,7 +4,9 @@ import { db } from '@/db.js';
 import { UserFile } from '@/types.js';
 import { ObjectId } from 'mongodb';
 
-const storageRoot = process.env.NODE_ENV === 'prod' ? '/var/tmp' : process.cwd();
+const storageRoot = ['prod', 'production'].includes(process.env.NODE_ENV || '')
+  ? '/var/tmp'
+  : process.cwd();
 
 /**
  * Path to the directory where uploaded source files are stored

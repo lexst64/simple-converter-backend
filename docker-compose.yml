@@ -19,8 +19,8 @@ services:
     image: simple-converter-worker:latest
     command: node dist/worker.js
     restart: unless-stopped
-    deploy:
-      replicas: 2
+    # deploy:
+    #   replicas: 2
     env_file:
       - .env
     environment:

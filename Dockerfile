@@ -22,7 +22,7 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
-RUN mkdir -p _uploads _outputs
+RUN mkdir -p _uploads _outputs logs
 
 RUN chown -R node:node /app
 USER node
