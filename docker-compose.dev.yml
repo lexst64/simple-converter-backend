@@ -1,6 +1,25 @@
 services:
+  backend:
+    build: .
+    image: simple-converter-backend:latest
+    container_name: simple-converter-backend
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=dev
+    volumes:
+      - uploads_data:/app/_uploads
+      - outputs_data:/app/_outputs
+
   redis:
     image: redis:7-alpine
     container_name: simple-converter-redis-dev
     ports:
-      - "6379:6379"
+      - '6379:6379'
+
+volumes:
+  uploads_data:
+  outputs_data:

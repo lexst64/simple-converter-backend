@@ -88,7 +88,6 @@ The application reads configuration from environment variables or a `.env` file:
 | `AWS_S3_BUCKET_NAME` | Name of your AWS S3 bucket. | `simple-converter-bucket` | Yes |
 | `AWS_REGION` | AWS Region where the S3 bucket is hosted. | `eu-central-1` | Yes |
 | `REDIS_URL` | Redis connection URL for BullMQ. | `rediss://default:...@...upstash.io:6379` | Yes |
-| `REDIS_CLUSTER_ENABLED` | Set `true` if connecting to a Redis Cluster. | `false` | No |
 | `WORKER_CONCURRENCY` | Maximum concurrent conversion jobs per worker. | `1` | No |
 
 ---
@@ -120,7 +119,6 @@ You can deploy the entire backend stack (API server + WebSocket + FFmpeg Worker)
    - `AWS_S3_BUCKET_NAME` = `<your-s3-bucket-name>`
    - `AWS_REGION` = `eu-central-1`
    - `REDIS_URL` = `<your-redis-connection-url>` (e.g. from [Upstash](https://upstash.com))
-   - `REDIS_CLUSTER_ENABLED` = `false`
 6. **Health Check Path**:
    Under **Advanced Settings**, set **Health Check Path** to `/api/v1/health`.
 7. **Deploy**:
