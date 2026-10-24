@@ -80,6 +80,7 @@ The application reads configuration from environment variables or a `.env` file:
 | `PORT` | Port number on which the API server listens. | `3000` (or injected by Render) | Yes |
 | `FRONTEND_URL` | URL of the frontend client (for CORS configuration). | `https://your-frontend.vercel.app` | Yes |
 | `JWT_SECRET` | Secret key used to sign and verify JSON Web Tokens. | `your_secret_key_here` | Yes |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID; Google ID tokens must be issued for this audience. | `1234567890-abc.apps.googleusercontent.com` | Yes |
 | `NODE_ENV` | Environment (`dev`, `prod`, or `production`). | `production` | Yes |
 | `RUN_WORKER` | Run the BullMQ worker inside the same process. | `true` | No |
 | `MONGODB_URI` | MongoDB connection string (e.g. Atlas cluster). | `mongodb+srv://...` | Yes |
@@ -113,6 +114,7 @@ You can deploy the entire backend stack (API server + WebSocket + FFmpeg Worker)
    - `RUN_WORKER` = `true`
    - `FRONTEND_URL` = `https://<your-frontend-url>`
    - `JWT_SECRET` = `<your-random-jwt-secret>`
+   - `GOOGLE_CLIENT_ID` = `<your-google-oauth-client-id>`
    - `MONGODB_URI` = `<your-mongodb-atlas-uri>`
    - `AWS_ACCESS_KEY_ID` = `<your-aws-access-key-id>`
    - `AWS_SECRET_ACCESS_KEY` = `<your-aws-secret-access-key>`

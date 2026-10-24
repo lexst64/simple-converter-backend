@@ -117,7 +117,7 @@ export class ConversionService {
     outputFormat: string,
   ): Promise<Job> {
     const files = db.collection<UserFile>('files');
-    const inputFile = await files.findOne({ _id: inputFileId });
+    const inputFile = await files.findOne({ _id: inputFileId, userId });
 
     if (!inputFile || inputFile.deletedAt) {
       throw new AppError(400, `Input file with ID ${inputFileId.toString()} does not exist`);
@@ -296,7 +296,7 @@ export class ConversionService {
       let prevProgress = 0;
 
       // Parse FFmpeg stderr for progress information
-      ffmpeg.stderr.on('data', async (data) => {
+      ffmpeg.stderr.on('data', (data) => {
         const output = data.toString();
         errorOutput += output;
 
@@ -310,8 +310,19 @@ export class ConversionService {
 
             prevProgress = progress;
 
-            await this.updateJob(job, { progress });
-            logger.debug({ jobId: job._id.toString(), progress }, 'Conversion progress updated');
+            this.updateJob(job, { progress })
+              .then(() => {
+                logger.debug(
+                  { jobId: job._id.toString(), progress },
+                  'Conversion progress updated',
+                );
+              })
+              .catch((err) => {
+                logger.warn(
+                  { jobId: job._id.toString(), err },
+                  'Failed to update conversion progress',
+                );
+              });
           }
         }
       });
