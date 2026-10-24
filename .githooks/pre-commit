@@ -1,0 +1,11 @@
+#!/bin/sh
+# Runs the unit test suite before every commit.
+# Enabled via `git config core.hooksPath .githooks` (done automatically by `npm install`).
+# Bypass in an emergency with `git commit --no-verify`.
+
+echo "pre-commit: running unit tests..."
+
+if ! npm test --silent; then
+  echo "pre-commit: unit tests failed, commit aborted." >&2
+  exit 1
+fi

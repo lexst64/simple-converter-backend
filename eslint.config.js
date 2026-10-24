@@ -31,4 +31,13 @@ export default [
       'unused-imports/no-unused-imports': 'error',
     },
   },
+  {
+    // Tool config outside src/ (and therefore outside tsconfig.json): lint without type info.
+    files: ['vitest.config.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: null,
+      },
+    },
+  },
 ];
