@@ -20,6 +20,9 @@ declare global {
     interface Request {
       user?: UserPayload;
     }
+    interface Locals {
+      pagination?: { limit: number; offset: number };
+    }
   }
   interface Error {
     status?: number;
@@ -71,20 +74,21 @@ export const jwtAuth = (exceptFor?: string[]) => {
 
 /**
  * Middleware that parses and validates offset and limit query parameters for pagination.
+ * Stores the result in `res.locals.pagination`.
  */
 export const pagination = (defaultLimit: number, maxLimit: number) => {
-  return (req: Request, _res: Response, next: NextFunction) => {
-    let { limit, offset } = req.query;
+  return (req: Request, res: Response, next: NextFunction) => {
+    const { limit, offset } = req.query;
 
-    let parsedLimit = Number(limit) || defaultLimit;
-    let parsedOffset = Number(offset) || 0;
+    let parsedLimit = Math.floor(Number(limit)) || defaultLimit;
+    let parsedOffset = Math.floor(Number(offset)) || 0;
 
     if (parsedLimit < 1) parsedLimit = defaultLimit;
     if (parsedLimit > maxLimit) parsedLimit = maxLimit;
     if (parsedOffset < 0) parsedOffset = 0;
 
-    req.query.limit = parsedLimit.toString();
-    req.query.offset = parsedOffset.toString();
+    // req.query is a re-parsed getter in Express 5, so writes to it don't persist
+    res.locals.pagination = { limit: parsedLimit, offset: parsedOffset };
 
     next();
   };

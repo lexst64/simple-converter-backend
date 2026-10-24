@@ -65,20 +65,18 @@ router.post('/job', async (req, res) => {
  * GET /api/v1/conversions/job
  * Gets list of conversion jobs for the authenticated user
  */
-router.get('/job', pagination(1, 50), async (req, res) => {
+router.get('/job', pagination(20, 50), async (req, res) => {
   const userId = req.user?.googleId || '';
 
-  const { limit, offset } = req.query;
-  const parsedLimit = Number(limit) || 1;
-  const parsedOffset = Number(offset) || 0;
+  const { limit, offset } = res.locals.pagination!;
 
-  const jobs = await ConversionService.getUserJobs(userId, parsedLimit, parsedOffset);
+  const { jobs, total } = await ConversionService.getUserJobs(userId, limit, offset);
 
   return res.json({
     jobs,
-    limit: parsedLimit,
-    offset: parsedOffset,
-    total: jobs.length,
+    limit,
+    offset,
+    total,
   });
 });
 
