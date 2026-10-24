@@ -117,7 +117,7 @@ export class ConversionService {
     outputFormat: string,
   ): Promise<Job> {
     const files = db.collection<UserFile>('files');
-    const inputFile = await files.findOne({ _id: inputFileId });
+    const inputFile = await files.findOne({ _id: inputFileId, userId });
 
     if (!inputFile || inputFile.deletedAt) {
       throw new AppError(400, `Input file with ID ${inputFileId.toString()} does not exist`);
