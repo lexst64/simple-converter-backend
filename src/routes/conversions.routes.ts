@@ -14,7 +14,7 @@ import { conversionQueue } from '@/queue.js';
 const router = Router();
 
 const ConversionJobRequestSchema = z.object({
-  inputFileId: z.string(),
+  inputFileId: z.string().regex(/^[a-f\d]{24}$/i, 'Invalid inputFileId'),
   outputFormat: z.string(),
 });
 

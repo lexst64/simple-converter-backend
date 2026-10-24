@@ -75,8 +75,11 @@ router.get('/:fileId', async (req: Request, res: Response) => {
   }
 
   const fileId = typeof req.params.fileId === 'string' ? req.params.fileId : req.params.fileId[0];
+  if (!ObjectId.isValid(fileId)) {
+    throw new AppError(400, 'Invalid ID format');
+  }
 
-  const userFile = await FileService.getUserFile(userId, ObjectId.createFromHexString(fileId));
+  const userFile = await FileService.getUserFile(userId, new ObjectId(fileId));
 
   if (!userFile) {
     throw new AppError(404, `File with ID '${fileId}' not found`);
@@ -98,8 +101,11 @@ router.get('/:fileId/details', async (req, res) => {
   }
 
   const fileId = typeof req.params.fileId === 'string' ? req.params.fileId : req.params.fileId[0];
+  if (!ObjectId.isValid(fileId)) {
+    throw new AppError(400, 'Invalid ID format');
+  }
 
-  const userFile = await FileService.getUserFile(userId, ObjectId.createFromHexString(fileId));
+  const userFile = await FileService.getUserFile(userId, new ObjectId(fileId));
 
   if (!userFile) {
     throw new AppError(404, `File details with ID '${fileId}' not found`);
