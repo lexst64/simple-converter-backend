@@ -296,7 +296,7 @@ export class ConversionService {
       let prevProgress = 0;
 
       // Parse FFmpeg stderr for progress information
-      ffmpeg.stderr.on('data', async (data) => {
+      ffmpeg.stderr.on('data', (data) => {
         const output = data.toString();
         errorOutput += output;
 
@@ -310,8 +310,19 @@ export class ConversionService {
 
             prevProgress = progress;
 
-            await this.updateJob(job, { progress });
-            logger.debug({ jobId: job._id.toString(), progress }, 'Conversion progress updated');
+            this.updateJob(job, { progress })
+              .then(() => {
+                logger.debug(
+                  { jobId: job._id.toString(), progress },
+                  'Conversion progress updated',
+                );
+              })
+              .catch((err) => {
+                logger.warn(
+                  { jobId: job._id.toString(), err },
+                  'Failed to update conversion progress',
+                );
+              });
           }
         }
       });
