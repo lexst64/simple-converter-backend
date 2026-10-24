@@ -2,14 +2,14 @@ import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import { db } from '@/db.js';
-import { JWT_SECRET } from '@/config.js';
+import { GOOGLE_CLIENT_ID, JWT_SECRET } from '@/config.js';
 import { logger } from '@/logger.js';
 import { AppError } from '@/errors.js';
 import { User } from '@/types.js';
 import z from 'zod';
 
 const router = Router();
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 const TicketPayloadSchema = z.object({
   sub: z.string(),
@@ -32,7 +32,7 @@ router.post('/google', async (req, res) => {
   try {
     const ticket = await client.verifyIdToken({
       idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: GOOGLE_CLIENT_ID,
     });
 
     const payload = ticket.getPayload();

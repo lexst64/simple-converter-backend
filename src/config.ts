@@ -6,6 +6,7 @@ dotenv.config();
 export const PORT = requireEnv('PORT');
 export const FRONTEND_URL = requireEnv('FRONTEND_URL');
 export const JWT_SECRET = requireEnv('JWT_SECRET');
+export const GOOGLE_CLIENT_ID = requireEnv('GOOGLE_CLIENT_ID');
 export const NODE_ENV = requireEnv('NODE_ENV');
 export const MONGODB_URI = requireEnv('MONGODB_URI');
 export const AWS_ACCESS_KEY_ID = requireEnv('AWS_ACCESS_KEY_ID');
