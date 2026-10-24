@@ -52,7 +52,7 @@ router.post('/upload-request', async (req: Request, res: Response) => {
   });
 
   if (!userFile) {
-    return new AppError(500, 'File upload failed');
+    throw new AppError(500, 'File upload failed');
   }
 
   const presignedPutUrl = await S3Service.generateUploadPresignedUrl(
