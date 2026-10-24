@@ -48,6 +48,7 @@ Ensure you have the following installed on your system:
    cd simple-converter-backend
    npm install
    ```
+   `npm install` also points git at the versioned hooks in `.githooks/` (`git config core.hooksPath .githooks`), so the unit tests run before every commit. Use `git commit --no-verify` to skip them in an emergency.
 
 2. **Configure Environment Variables**:
    Copy the example environment file and fill in your credentials:

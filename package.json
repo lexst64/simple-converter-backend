@@ -11,7 +11,8 @@
     "dev:worker": "tsx watch src/worker.ts",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepare": "node -e \"try { require('node:child_process').execSync('git config core.hooksPath .githooks', { stdio: 'ignore' }) } catch {}\""
   },
   "author": "",
   "license": "MIT",
