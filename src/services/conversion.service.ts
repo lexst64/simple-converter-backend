@@ -167,12 +167,21 @@ export class ConversionService {
   }
 
   /**
-   * Gets all jobs for a user
+   * Gets a page of jobs for a user along with the user's total job count
    */
-  static async getUserJobs(userId: string, limit: number, offset: number): Promise<Job[]> {
+  static async getUserJobs(
+    userId: string,
+    limit: number,
+    offset: number,
+  ): Promise<{ jobs: Job[]; total: number }> {
     const jobs = db.collection<Job>('jobs');
 
-    return await jobs.find({ userId }).sort({ createdAt: -1 }).skip(offset).limit(limit).toArray();
+    const [page, total] = await Promise.all([
+      jobs.find({ userId }).sort({ createdAt: -1 }).skip(offset).limit(limit).toArray(),
+      jobs.countDocuments({ userId }),
+    ]);
+
+    return { jobs: page, total };
   }
 
   /**

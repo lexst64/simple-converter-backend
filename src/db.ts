@@ -19,6 +19,10 @@ export async function connectToDatabase(): Promise<Db> {
   await client.connect();
   db = client.db(['prod', 'production'].includes(NODE_ENV) ? 'main' : 'dev');
   logger.info(`Successfully connected to "${db.databaseName}"`);
+
+  // idempotent; supports paginated listing of a user's jobs
+  await db.collection('jobs').createIndex({ userId: 1, createdAt: -1 });
+
   return db;
 }
 
