@@ -42,8 +42,7 @@ export const jwtAuth = (exceptFor?: string[]) => {
     }
 
     const authHeader = req.headers.authorization;
-    const queryToken = typeof req.query.token === 'string' ? req.query.token : undefined;
-    const rawToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : queryToken;
+    const rawToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
 
     if (!rawToken) throw new AppError(401, 'Not authenticated');
 
@@ -129,7 +128,7 @@ export const httpLogger = (logger: pino.Logger) => {
     serializers: {
       req: (req) => ({
         method: req.method,
-        url: req.url,
+        url: req.url.split('?')[0],
       }),
       res: (res) => ({
         statusCode: res.statusCode,
